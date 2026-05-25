@@ -1,0 +1,19 @@
+// Prisma schema — Phase 0 (minimal, only validates DB connectivity).
+// El schema completo se llena en F1 desde docs/05-schema-supabase.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model HealthCheck {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("health_checks")
+}

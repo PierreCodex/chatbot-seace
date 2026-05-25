@@ -1,0 +1,42 @@
+# Node / pnpm
+node_modules/
+.pnpm-store/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts
+dist/
+build/
+*.tsbuildinfo
+.nest/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Playwright
+.playwright/
+.playwright-cli/
+playwright-report/
+test-results/
+
+# Prisma (mantener prisma/schema.prisma y prisma/migrations, ignorar lo demás)
+prisma/.tmp/
+
+# IDE
+.vscode/*
+!.vscode/settings.json.example
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
