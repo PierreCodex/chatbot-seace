@@ -104,32 +104,22 @@ model Entity {
 // DATOS DE SEACE
 // =====================================================================
 
+// Tabla base (Class Table Inheritance). Guarda SOLO los campos compartidos por
+// todas las pestañas de SEACE + identidad/dedup + relaciones (alertas, archivos,
+// historial cuelgan de aquí). Lo específico de cada pestaña vive en su tabla 1:1
+// (process_acf, process_procedimiento). El discriminador es `tab`.
 model Process {
   id                String              @id @default(uuid()) @db.Uuid
   tab               ProcesoTab
-  nomenclatura      String?
   entityRuc         String?             @map("entity_ruc") @db.VarChar(11)
   entityNombre      String              @map("entity_nombre")
   fechaPublicacion  DateTime?           @map("fecha_publicacion") @db.Timestamptz
-  tipoSeleccion     String?             @map("tipo_seleccion")
-  tipoSeleccionId   Int?                @map("tipo_seleccion_id")
   objeto            ObjetoContratacion?
   descripcion       String?
-  alcance           String?
-  cantidad          Decimal?            @db.Decimal
-  plazoDias         Int?                @map("plazo_dias")
-  fechaAproxConv    DateTime?           @map("fecha_aprox_conv") @db.Date
 
-  codigoSnip        String?             @map("codigo_snip")
-  codigoCui         String?             @map("codigo_cui")
-  valorReferencial  Decimal?            @map("valor_referencial") @db.Decimal(18, 2)
-  moneda            String?
-  versionSeace      Int?                @map("version_seace") @db.SmallInt
-
-  nidProceso        String?             @map("nid_proceso")
-  nidConvocatoria   String?             @map("nid_convocatoria")
-  urlRepositorio    String?             @map("url_repositorio")
-
+  // Identidad por pestaña: ACF = contentHash (sin id estable);
+  // Procedimientos = "nomenclatura|versionSeace". contentHash detecta cambios.
+  dedupeKey         String              @map("dedupe_key")
   contentHash       String              @map("content_hash")
   scrapedAt         DateTime            @default(now()) @map("scraped_at") @db.Timestamptz
   firstSeenAt       DateTime            @default(now()) @map("first_seen_at") @db.Timestamptz
@@ -140,17 +130,55 @@ model Process {
   createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime            @updatedAt      @map("updated_at") @db.Timestamptz
 
-  entity            Entity?             @relation(fields: [entityRuc], references: [ruc])
+  entity            Entity?               @relation(fields: [entityRuc], references: [ruc])
+  acf               ProcessAcf?
+  procedimiento     ProcessProcedimiento?
   history           ProcessHistory[]
   subscriptionHits  SubscriptionHit[]
   files             File[]
 
-  @@unique([tab, nomenclatura, versionSeace], name: "tab_nomenclatura_versionSeace")
+  @@unique([tab, dedupeKey], name: "tab_dedupeKey")
   @@index([entityRuc])
   @@index([fechaPublicacion(sort: Desc)])
   @@index([objeto])
-  @@index([nidProceso])
   @@map("processes")
+}
+
+// Detalle 1:1 de "Anuncio de Contratación Futura" (tab=anuncios_futuros).
+model ProcessAcf {
+  processId      String    @id @map("process_id") @db.Uuid
+  tipoSeleccion  String?   @map("tipo_seleccion")
+  alcance        String?
+  cantidad       Decimal?  @db.Decimal
+  plazoDias      Int?      @map("plazo_dias")
+  fechaAproxConv DateTime? @map("fecha_aprox_conv") @db.Date
+
+  process        Process   @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@map("process_acf")
+}
+
+// Detalle 1:1 de "Buscador de Procedimientos de Selección" (tab=procedimientos).
+// Tabla creada para mantener la base limpia y el path legacy tipado; las features
+// de esta pestaña quedan para una fase posterior.
+model ProcessProcedimiento {
+  processId        String   @id @map("process_id") @db.Uuid
+  nomenclatura     String?
+  reiniciadoDesde  String?  @map("reiniciado_desde")
+  tipoSeleccionId  Int?     @map("tipo_seleccion_id")
+  codigoSnip       String?  @map("codigo_snip")
+  codigoCui        String?  @map("codigo_cui")
+  valorReferencial Decimal? @map("valor_referencial") @db.Decimal(18, 2)
+  moneda           String?
+  versionSeace     Int?     @map("version_seace") @db.SmallInt
+  nidProceso       String?  @map("nid_proceso")
+  nidConvocatoria  String?  @map("nid_convocatoria")
+  urlRepositorio   String?  @map("url_repositorio")
+
+  process          Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@index([nidProceso])
+  @@map("process_procedimiento")
 }
 
 model ProcessHistory {
