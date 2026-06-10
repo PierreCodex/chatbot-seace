@@ -66,9 +66,12 @@
         │  • Calcula scope dinámico:              │
         │      suscripciones activas + top-N      │
         │      búsquedas frecuentes (searches)    │
+        │  • Scope fijo ACF: 4 búsquedas (1 por   │
+        │    objeto), fan-out a suscripciones     │
         │  • Encola jobs "crawl:<scope>" a BullMQ │
         │  • Recorre subscription_hits pendientes │
-        │    y encola notificaciones              │
+        │    y encola notificaciones (digest)     │
+        │  • Expira alertas (expires_at vencido)  │
         └─────────────────────────────────────────┘
 ```
 
@@ -129,6 +132,15 @@ Cron: 0 18 * * *  (6 pm)
 Cron: 0 2 * * *   (2 am, ventana nocturna)
 ```
 
+> **Caso ACF (MVP de alertas)** — la pestaña Anuncio de Contratación Futura **no usa
+> scope dinámico**: su scope es **fijo, 4 búsquedas por corrida (una por objeto:
+> obra/bien/servicio/consultoría)**, que cubren toda la pestaña (~40 filas máx por
+> búsqueda, sin nomenclatura). Las suscripciones **no generan scrapes adicionales**:
+> el matching contra alertas es SQL puro sobre las filas recién insertadas (modelo
+> ingesta global + fan-out, ver `09-alertas-suscripciones.md` §2.1). El número de
+> scrapes de ACF es constante e independiente del número de usuarios. El scope
+> dinámico descrito abajo aplica a Procedimientos (en pausa) y demás pestañas.
+
 En cada disparo:
 
 ```
@@ -144,17 +156,27 @@ En cada disparo:
    d. Si hay cambios reales (insert o update con hash distinto) y el scope-item
       vino de una suscripción → inserta filas en subscription_hits con notified_at=null
 4. Después de procesar todos los jobs, el Scheduler:
-   a. Lee subscription_hits con notified_at IS NULL
-   b. Agrupa por user_id (para mandar 1 mensaje por usuario con todos los hits)
-   c. Encola notifications.status='queued'
-   d. NestJS las envía vía Kapso (plantilla UTILITY si >24h del último msg)
-   e. Marca subscription_hits.notified_at = now()
+   a. Expira alertas vencidas: status='active' AND expires_at < now() → status='expired'
+      (y ofrece "Reactivar" al usuario en el siguiente contacto)
+   b. Lee subscription_hits con notified_at IS NULL cuya ventana de entrega venció
+      (next_run_at = ventana de ENTREGA según frequency, no de scrape:
+       hourly = "alerta inmediata": se entrega tras la corrida que detectó el match;
+       daily = digest 8am; weekly = digest lunes 8am)
+   c. Agrupa por user_id (para mandar 1 mensaje por usuario con todos los hits)
+   d. Encola notifications.status='queued'
+   e. NestJS las envía vía Kapso (plantilla UTILITY si >24h del último msg)
+   f. Marca subscription_hits.notified_at = now()
 ```
+
+> **Copy de producto**: la frecuencia premium `hourly` se comunica siempre como
+> **"alerta inmediata al detectar"** o **"notificación prioritaria"** — nunca como
+> "tiempo real" ni "instantáneo", porque la frescura máxima es la cadencia del
+> crawler (4×/día al inicio; subir a horaria es solo mover este dial).
 
 **Detalles clave:**
 - Nunca se hace un scrape "global" sin filtros. Si no hay suscripciones ni búsquedas frecuentes, no se scrapea nada esa corrida.
 - `content_hash` (en `processes`) garantiza que sólo los procesos nuevos o modificados generen `subscription_hits`. No hay re-emisiones.
-- Si una suscripción nunca matcheó nada en N corridas, se reduce su frecuencia en el scheduler (back-off) para no consumir recursos.
+- Si una suscripción de **scope dinámico** (Procedimientos) nunca matcheó nada en N corridas, se reduce su frecuencia en el scheduler (back-off) para no consumir recursos. **No aplica a ACF**: con fan-out, una suscripción sin matches cuesta 0 scrapes.
 
 ### Flujo 4: fallback on-demand con persistencia
 
@@ -254,9 +276,14 @@ Kapso maneja:
 
 NestJS habla con Kapso vía HTTP/SDK; no toca Meta directamente. Si Kapso cae, la API queda parcialmente disponible (Redis y BD operan) pero no llegan/salen mensajes.
 
-### D6. Idempotencia del upsert
+### D6. Idempotencia del upsert — clave natural por pestaña
 
-Cada proceso de SEACE tiene **nomenclatura única** (`LP-ABR-1-2026-MDY/CS-1`) que sirve como clave natural. El worker hace `INSERT ... ON CONFLICT (nomenclatura) DO UPDATE SET datos_actualizados=now(), ...`. Esto permite re-scrapear sin duplicar y detectar cambios (versionado opcional con tabla `process_history`).
+La clave natural del upsert **depende de la pestaña**:
+
+- **Procedimientos** (y demás pestañas con nomenclatura): la **nomenclatura única** (`LP-ABR-1-2026-MDY/CS-1`). `INSERT ... ON CONFLICT (tab, nomenclatura, version) DO UPDATE ...`.
+- **ACF (Anuncio de Contratación Futura)**: las filas **no tienen nomenclatura ni `nidProceso`** (verificado en inspección, ver `04-scraping.md` §2.4). La clave natural es el **`content_hash`** de la fila. El upsert para `tab=anuncios_futuros` deduplica por `(tab, content_hash)` — el índice único parcial correspondiente se crea junto con la strategy ACF.
+
+En ambos casos el `content_hash` detecta cambios reales (versionado opcional con tabla `process_history`).
 
 ## Manejo de latencia JSF — el problema real
 

@@ -108,7 +108,7 @@ src/
 │       │   │   ├── tab.strategy.ts          # interface base
 │       │   │   ├── tab-strategy.registry.ts # mapa tab → strategy
 │       │   │   ├── procedimientos.strategy.ts
-│       │   │   ├── anuncios.strategy.ts
+│       │   │   ├── anuncios-futuros.strategy.ts   # ACF — tab='anuncios_futuros'
 │       │   │   ├── expresiones.strategy.ts
 │       │   │   ├── difusion.strategy.ts
 │       │   │   ├── ocos.strategy.ts
@@ -340,14 +340,21 @@ export class PrismaProcessesRepo implements ProcessesRepoPort {
   }
 
   async upsertMany(rows: ProcessRow[]) {
-    // ON CONFLICT (tab, nomenclatura, version_seace) via composite unique
+    // Clave de conflicto POR PESTAÑA (ver 02 · D6):
+    //   procedimientos     → (tab, nomenclatura, version_seace)
+    //   anuncios_futuros    → (tab, content_hash)   ← ACF no tiene nomenclatura
+    //   [requiere índice único parcial para tab='anuncios_futuros']
     let inserted = 0, updated = 0
     await this.prisma.$transaction(async (tx) => {
       for (const r of rows) {
+        const hash = hashRow(r)
+        const where = r.tab === 'anuncios_futuros'
+          ? { tab_contentHash: { tab: r.tab, contentHash: hash } }
+          : { tab_nomenclatura_versionSeace: { tab: r.tab, nomenclatura: r.nomenclatura, versionSeace: r.versionSeace } }
         const result = await tx.process.upsert({
-          where: { tab_nomenclatura_versionSeace: { tab: r.tab, nomenclatura: r.nomenclatura, versionSeace: r.versionSeace } },
-          create: { ...r, contentHash: hashRow(r) },
-          update: { ...r, contentHash: hashRow(r), scrapedAt: new Date() }
+          where,
+          create: { ...r, contentHash: hash },
+          update: { ...r, contentHash: hash, scrapedAt: new Date() }
         })
         result.firstSeenAt.getTime() === result.scrapedAt.getTime() ? inserted++ : updated++
       }
@@ -398,13 +405,21 @@ Migración futura: si se cambia Storage a S3 o R2, se crea `adapters/storage/s3/
 
 ```typescript
 // src/adapters/scraper/seace/strategies/tab.strategy.ts
-export interface TabStrategy<TFilters, TRow> {
-  readonly tab: 'procedimientos' | 'anuncios' | 'expresiones' | 'difusion' | 'ocos' | 'cco'
+// Interfaz REAL en código: sin genéricos, sin exportExcel; con formId y paginación.
+export interface ParsedPage {
+  rows: ProcessRow[]
+  totalReported: number | null
+  currentPage: number | null
+  totalPages: number | null
+}
+export interface TabStrategy {
+  readonly tab: TabName                 // enum Prisma: 'procedimientos' | 'anuncios_futuros' | ...
+  readonly formId: string               // id del form JSF de la pestaña
   switchTo(page: Page): Promise<void>
-  applyFilters(page: Page, f: TFilters): Promise<void>
+  applyFilters(page: Page, f: SearchFilters): Promise<void>
   search(page: Page): Promise<void>
-  parse(page: Page): Promise<TRow[]>
-  exportExcel(page: Page): Promise<Buffer>
+  parse(page: Page): Promise<ParsedPage>
+  goToNextPage(page: Page): Promise<boolean>   // true si avanzó; false si era la última página
 }
 
 // Registry inyectable
@@ -412,17 +427,22 @@ export interface TabStrategy<TFilters, TRow> {
 export class TabStrategyRegistry {
   constructor(
     private readonly procedimientos: ProcedimientosStrategy,
-    private readonly anuncios: AnunciosStrategy,
+    private readonly anunciosFuturos: AnunciosFuturosStrategy,   // tab='anuncios_futuros' (ACF)
     // ...
   ) {}
-  get(tab: TabName): TabStrategy<any, any> {
-    const map = { procedimientos: this.procedimientos, anuncios: this.anuncios, /*...*/ }
+  get(tab: TabName): TabStrategy {
+    const map = { procedimientos: this.procedimientos, anuncios_futuros: this.anunciosFuturos, /*...*/ }
     const s = map[tab]
     if (!s) throw new Error(`Strategy no encontrada: ${tab}`)
     return s
   }
 }
 ```
+
+> **Nota Excel**: la strategy **no** expone `exportExcel`. El botón Exportar de ACF
+> existe en SEACE, pero no lo usamos: el PDF se **renderiza desde `processes`**
+> (ver `06` §10.6 y `04` §3.2). Si algún día se necesita el Excel fast-path para
+> Procedimientos, será un método aparte, no parte de esta interfaz.
 
 `SeaceAdapter` recibe el registry por DI y delega a la estrategia que corresponda. Añadir una pestaña nueva = 1 archivo `xxx.strategy.ts` + 1 línea en el registry.
 
@@ -599,6 +619,27 @@ Como `modules/` no toca `adapters/`, los tests unitarios pueden inyectar mocks e
 | `if (provider === 'kapso') {...} else {...}` | DI binding en `app.module.ts` |
 | `try/catch` que se traga errores en flows | Errores tipados (`common/errors/`) + filter global |
 | Adapter llamando a otro adapter | Adapter no conoce a otros adapters; el module de negocio orquesta |
+
+## 8·bis — Piezas del MVP (ACF / alertas) aún sin casa en esta estructura
+
+Decisiones posteriores a la escritura original de este doc. Pendientes de ubicar:
+
+1. **Resolvedor de entidad (Módulo 5).** Existe `entities.repo.ts` + `ENTITIES_REPO`,
+   pero falta el **módulo de negocio**: `modules/entities/` (facade con búsqueda
+   difusa pg_trgm nombre/sigla/RUC) + `bot/flows/entity-resolver.flow.ts` (sub-flujo
+   inline + standalone). Ver `06` §10.4.
+2. **Render de PDF "ficha-por-anuncio"** (resultados ACF >5). Renderer puro
+   `ProcessRow[] → Buffer` en `modules/files/`, **al vuelo, sin** Supabase Storage; lo
+   consume el presenter de resultados. Ver `06` §10.6.
+3. **Tier/plan + expiración de alertas.** `wa_users.plan` ya migrado. Falta: gating de
+   frecuencia/duración (policy en `modules/subscriptions/`) y job `@Cron` de expiración
+   (`status='expired'` si `expires_at < now()`). Ver `09` §2.2-2.3.
+4. **Crawler ACF de scope fijo + fan-out.** Para ACF NO se usa `scope-builder` (subs +
+   top-N): son 4 búsquedas fijas por corrida (una por objeto) y
+   `subscriptions/hit-detection.service.ts` hace el match. El `scope-builder` queda
+   para Procedimientos. Ver `02` Flujo 3.
+5. **Strategy ACF**: `anuncios-futuros.strategy.ts` (tab `anuncios_futuros`) contra la
+   interfaz real (§4.1). Es el primer ladrillo del MVP.
 
 ## 9. Resumen
 

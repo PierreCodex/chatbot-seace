@@ -112,14 +112,26 @@ Al final del listado siempre aparece el CTA. Al pulsarlo:
 ```
 Bot: Te avisaré cuando MINISTERIO DE SALUD publique nuevos procesos de Obra.
      ¿Cada cuánto quieres recibir el aviso?
-     [Tiempo real (cada hora)] [1 vez al día] [1 vez a la semana]
+     [⚡ Inmediata (Premium)] [1 vez al día] [1 vez a la semana]
 
 User: [1 vez al día]
 
+Bot: ¿Por cuánto tiempo mantengo esta alerta?
+     [1 día] [1 semana]
+     (Premium ve además: [1 mes] [Sin vencimiento])
+
+User: [1 semana]
+
 Bot: ✅ Suscripción creada.
      Te escribiré cada día a las 8:00 am con los procesos nuevos.
+     Vence en 1 semana (te ofreceré reactivarla).
      Para gestionar tus suscripciones escribe /suscripciones o usa el menú.
 ```
+
+> **Copy**: la opción premium se llama **"alerta inmediata al detectar"** /
+> "notificación prioritaria" — nunca "tiempo real" ni "instantáneo" (la frescura
+> real es la cadencia del crawler). Frecuencia + duración + gating por tier:
+> ver `09-alertas-suscripciones.md` §2.2-2.3 y §6.
 
 ### 1.4 Submódulo "Refinar búsqueda"
 
@@ -238,9 +250,10 @@ Bot: Tus suscripciones activas (3):
 
 Operaciones por suscripción: pausar, reactivar, eliminar, cambiar frecuencia.
 
-Límites del MVP:
-- Máx 10 suscripciones por usuario (para evitar spam y costos de scraping).
-- Frecuencias: tiempo real (cada 1h), diaria (8am), semanal (lunes 8am).
+Límites del MVP (segmentados por tier, ver `09-alertas-suscripciones.md` §8):
+- Máx alertas activas: **3 (free) / 10 (premium)**.
+- Frecuencias: diaria (8am), semanal (lunes 8am); **inmediata al detectar** solo premium.
+- Duraciones: 1 día, 1 semana (free); +1 mes, indefinida (premium). Al vencer, la alerta pasa a `expired` y se ofrece reactivar.
 - Cuotas: si una suscripción genera >50 alertas en una corrida, se agrupa en un solo mensaje "MINSA publicó 60 procesos. [Ver todos]".
 
 ## Módulo 4 — Entrega de archivos

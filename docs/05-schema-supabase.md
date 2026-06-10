@@ -48,8 +48,9 @@ enum ObjetoContratacion {
   consultoria_obra
 }
 
-enum SubFrequency { hourly daily weekly }
-enum SubStatus    { active paused deleted }
+enum SubFrequency { hourly daily weekly }   // hourly = "alerta inmediata al detectar" (premium)
+enum SubStatus    { active paused expired deleted }
+enum UserPlan     { free premium }
 
 enum NotifKind   { search_result subscription_hit file_delivery system_message template }
 enum NotifStatus { queued sent delivered read failed }
@@ -157,6 +158,8 @@ model WaUser {
   totalMessages BigInt   @default(0) @map("total_messages")
   language      String   @default("es-PE")
   blocked       Boolean  @default(false)
+  plan          UserPlan @default(free)
+  planExpiresAt DateTime? @map("plan_expires_at") @db.Timestamptz
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime @updatedAt      @map("updated_at") @db.Timestamptz
 
@@ -186,6 +189,7 @@ model Subscription {
   valorMax        Decimal?            @map("valor_max") @db.Decimal(18, 2)
   frequency       SubFrequency        @default(daily)
   status          SubStatus           @default(active)
+  expiresAt       DateTime?           @map("expires_at") @db.Timestamptz
   lastRunAt       DateTime?           @map("last_run_at") @db.Timestamptz
   lastHitCount    Int                 @default(0) @map("last_hit_count")
   nextRunAt       DateTime?           @map("next_run_at") @db.Timestamptz
@@ -480,6 +484,8 @@ create table wa_users (
   total_messages  bigint not null default 0,
   language        text not null default 'es-PE',
   blocked         boolean not null default false,
+  plan            user_plan not null default 'free',     -- tier SaaS: free | premium
+  plan_expires_at timestamptz,                           -- fin del premium; NULL = sin vencimiento
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
@@ -496,7 +502,9 @@ Autorización: en aplicación. El bot, al recibir un webhook de Kapso/Meta, hace
 
 ```sql
 create type sub_frequency as enum ('hourly', 'daily', 'weekly');
-create type sub_status as enum ('active', 'paused', 'deleted');
+-- hourly = "alerta inmediata al detectar" (premium); copy: nunca "tiempo real"
+create type sub_status as enum ('active', 'paused', 'expired', 'deleted');
+-- expired: la marca el job de expiración cuando expires_at < now()
 
 create table subscriptions (
   id            uuid primary key default gen_random_uuid(),
@@ -514,6 +522,7 @@ create table subscriptions (
   
   frequency     sub_frequency not null default 'daily',
   status        sub_status not null default 'active',
+  expires_at    timestamptz,                      -- vigencia de la alerta; NULL = indefinida (premium)
   
   last_run_at   timestamptz,
   last_hit_count int not null default 0,

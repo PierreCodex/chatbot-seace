@@ -12,6 +12,8 @@ Diseño técnico inicial del chatbot WhatsApp para consultar contrataciones púb
 | 06 | [UX WhatsApp](./06-whatsapp-ux.md) | Mapeo SEACE → Buttons/Lists/Flows, patrones, anti-patrones |
 | 07 | [Arquitectura backend](./07-arquitectura-backend.md) | Estructura de carpetas NestJS, Ports & Adapters lite, Strategy por pestaña, separación bot/scraping/persistencia |
 | 08 | [Roadmap de implementación](./08-roadmap-implementacion.md) | Plan de fases (F0-F7+) con entregable testeable por fase, anti-scope-creep, stop conditions |
+| 09 | [Alertas y suscripciones](./09-alertas-suscripciones.md) | Catálogo de tipos de alerta (Entidad+Objeto, Objeto), restricciones de filtro de SEACE, 2 puntos de entrada y flujos WhatsApp |
+| 10 | [Roadmap UX del bot](./10-roadmap-ux-bot.md) | Roadmap para el agente UX: 4 módulos (menú, búsqueda ACF, resolvedor de entidad, suscripciones) como Flows+Presenters, contrato con backend, fases UX-1..UX-6 |
 
 ## Decisiones de stack confirmadas
 

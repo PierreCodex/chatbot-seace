@@ -1,3 +1,5 @@
+
+
 # 04 · Estrategia de scraping
 
 ## 0. Decisión central: scraping híbrido DB-first
@@ -194,6 +196,54 @@ const waitForPrimefaces = async (page: Page) => {
 ```
 
 Doble check: la búsqueda devuelve XML que reemplaza el datatable; el blockUI semitransparente se quita cuando termina.
+
+### 2.4 Pestaña Anuncio de Contratación Futura (ACF / tab7) — inspección en vivo
+
+> Inspeccionada en vivo el 2026-06-09 con `playwright-cli`. Es la pestaña que **más usan los usuarios** (anuncios previos a la convocatoria: "qué va a salir, de qué entidad, cuándo aprox."). Es además la **pestaña por defecto** al cargar `buscadorPublico.xhtml`. Se prioriza junto con Procedimientos como las 2 pestañas del MVP.
+
+**Identificadores base** (ya mapeados en `seace.types.ts`):
+
+| Concepto | Valor |
+|---|---|
+| Form | `tbBuscador:idFormbuscarACF` |
+| Tab link | `#tbBuscador:tab7` |
+| Datatable resultados | `tbBuscador:idFormbuscarACF:dtResultadosACF` (`class="ui-datatable myTable"`, body `tbody.ui-datatable-data`) |
+| Botón Buscar | `…:btnBuscarSel` · Limpiar `…:btnLimpiarSel` · Excel `…:btnExportar` |
+
+**Filtros del formulario** — **solo `Objeto de Contratación` es obligatorio**. A diferencia de Procedimientos, ACF **NO tiene "Año de la Convocatoria"**; filtra por **rangos de fecha**.
+
+| Campo | ID (sufijo dentro del form) | Tipo | Notas |
+|---|---|---|---|
+| Nombre/Sigla Entidad | `nombreEntidad` | text libre | + link `:ajax` abre modal "Buscar Entidad" |
+| Modal entidad | `txtNombreEntidad`, `txtRucEntidad`, `txtsigla`, `btnBuscarEntidad` | — | RUC elegido se guarda en hidden `hddNumeroRuc` |
+| Tipo de Selección | `cbxTipoSeleccion_input` (`_focus`) | select PF | No obligatorio. Valores: `1`=Licitación Pública, `67`/`60`/`61` variantes, `72`=Concurso Público Servicios, `73`=Consultoría, `64`=Precalificación, `66`=Proyecto Arquitectónico |
+| **Objeto de Contratación** ⭐ | `cbxObjContratacion_input` (`_focus`) | select PF | **Obligatorio**. Valores: `62`=Bien, `63`=Consultoría de Obra, `64`=Obra, `65`=Servicio. ⚠️ **Distintos a los de Procedimientos** |
+| Fecha de Publicación | `dfechaInicioPubACF_input` / `dfechaFinPubACF_input` | datepicker | `dd/MM/yyyy` |
+| Descripción del objeto | `descripcionObjeto` | text libre | |
+| Fecha Aprox. Convocatoria | `dfechaInicioAproxConvACF_input` / `dfechaFinAproxConvACF_input` | datepicker | `dd/MM/yyyy` |
+
+**Tabla de resultados — 10 columnas, todas `<td role="gridcell">` planas, SIN celda de acción/ficha:**
+
+| # | Columna | Campo `ProcessRow` | Formato observado |
+|---|---|---|---|
+| 0 | N° | (rowIndex) | `1` |
+| 1 | Nombre o Sigla de la Entidad | `entityNombre` | `MUNICIPALIDAD DISTRITAL DE CERRO COLORADO` |
+| 2 | Fecha de la Publicación | `fechaPublicacion` | `08/06/2026 15:32:00` (**incluye hora**) |
+| 3 | Tipo de Selección | `tipoSeleccion` | `Licitación Pública` |
+| 4 | Objeto de la Contratación | `objeto` | `Obra` |
+| 5 | Descripción del objeto | `descripcion` | texto largo (a veces trae `CUI xxxxx` embebido al final) |
+| 6 | Alcance | `alcance` | texto largo |
+| 7 | Cantidad | `cantidad` | `1` |
+| 8 | Plazo en días | `plazoDias` | `300` |
+| 9 | Fecha Aproximada de la convocatoria | `fechaAproxConv` | `20/07/2026` (sin hora) |
+
+**Consecuencias de diseño (importantes):**
+
+1. **No hay `nidProceso`/`nidConvocatoria` ni link a ficha** — es un anuncio *previo* a la convocatoria, todavía no existe el procedimiento. Por lo tanto `nomenclatura`, `valorReferencial`, `codigoSnip`, `codigoCui`, `versionSeace`, `nidProceso`, `nidConvocatoria`, `urlRepositorio` quedan `null` para filas ACF. El botón "Ver ficha" **no aplica** en las tarjetas de ACF.
+2. **El `ProcessRow` ya tiene los campos ACF** (`alcance`, `cantidad`, `plazoDias`, `fechaAproxConv`): el schema lo anticipó, no hay migración de datos pendiente.
+3. **Dedup**: la clave `tab_nomenclatura_version` de Procedimientos **NO sirve** (ACF no tiene nomenclatura ni version). La identidad de una fila ACF debe computarse por **`content_hash`** sobre `(entityNombre, fechaPublicacion, descripcion, fechaAproxConv)`. El upsert para `anuncios_futuros` usa esa ruta, no la clave única de nomenclatura. Ver sección 7.
+4. **Parser dedicado**: `HtmlRowsParser.parseProcedimientos` está cableado a las 13 columnas de Procedimientos; ACF necesita su propio `parseAnunciosFuturos` (10 columnas, mapeo de arriba).
+5. La búsqueda de prueba (Objeto=Obra) devolvió **40 resultados reales sin disparar bloqueo de reCAPTCHA**.
 
 ## 3. Parseo de resultados
 

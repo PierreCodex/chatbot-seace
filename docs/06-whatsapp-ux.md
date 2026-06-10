@@ -308,3 +308,142 @@ Cada flow nuevo se prueba con:
 - Tono directo, sin floritura.
 
 Si todo lo anterior se respeta, el bot replica los selectores de SEACE en 3-5 toques por consulta, contra los 8-12 clicks que toma navegar la web directamente.
+
+---
+
+## 10. Flujo concreto del MVP — Búsqueda ACF (canónico)
+
+> **Esta es la spec del módulo de Búsqueda ACF.** Estructura elegida: **Variante A
+> (menú dinámico de filtros con resumen acumulativo) + "empujón suave"**. Es la
+> evolución corregida de `docs/flujo.md`. Las secciones §1-§9 son referencia
+> general; ésta es la que se implementa primero. Aplica solo a `tab=acf`.
+
+### 10.1 Principio
+
+Lo **único obligatorio es el objeto**. Todo lo demás (entidad, tipo de selección,
+fechas) es **opcional** y se agrega desde un menú con resumen acumulativo. "Buscar
+ahora" está disponible en todo momento tras elegir el objeto.
+
+### 10.2 Componentes WhatsApp por paso
+
+| Paso | Componente |
+|---|---|
+| Menú principal | List (Anuncios futuros · Mis alertas · Consultar entidad · Ayuda) |
+| Objeto (obligatorio) | List (1 sección, 4 items) |
+| Menú dinámico de filtros | Buttons (Buscar ahora + agregar filtro) / List si >3 acciones |
+| Resolver entidad | Texto libre → List de coincidencias |
+| Tipo de selección | **Flow** (dropdown 89, agrupado por categoría) |
+| Rango de fechas | **Flow** (2 date pickers; validar desde ≤ hasta) |
+| Empujón suave (búsqueda amplia) | Buttons (Buscar todos / Filtrar por entidad) |
+| Resultados ≤5 | Tarjetas ACF en chat |
+| Resultados >5 | Resumen + **PDF ficha-por-anuncio** (documento) |
+| Suscribirse | Buttons (frecuencia) → Buttons (duración) |
+
+### 10.3 Happy path (A2 — objeto solo → PDF → suscripción)
+
+```
+Bot: 👋 Bienvenido a ContrataBot. ¿Qué deseas hacer?
+     ▼ [Ver opciones]
+       📅 Anuncios de Contratación Futura
+       🔔 Mis alertas
+       🔎 Consultar entidad
+       ❓ Ayuda
+
+User: [📅 Anuncios de Contratación Futura]
+
+Bot: Para empezar elige el objeto (obligatorio):
+     ▼  🏗️ Obra · 🛒 Bien · 🛠️ Servicio · 📐 Consultoría
+User: [🏗️ Obra]
+
+Bot: ✅ Filtros actuales: Obra
+     ¿Buscas así o quieres afinar?
+     [🔍 Buscar ahora]  [➕ Agregar filtro]
+
+User: [🔍 Buscar ahora]      ← va a búsqueda amplia → EMPUJÓN SUAVE:
+
+Bot: Vas a ver TODOS los anuncios futuros de Obra (suelen ser varios).
+     ¿Buscar así o acotar por entidad?
+     [🌎 Buscar todos]  [🏢 Filtrar por entidad]
+User: [🌎 Buscar todos]
+
+Bot: 🔎 Buscando anuncios futuros...
+Bot: Encontré 28 anuncios de Obra. Como son varios, te los envío en PDF 👇
+     📄 anuncios-futuros-obra.pdf
+     [🔔 Suscribirme]  [✏️ Refinar]
+
+User: [🔔 Suscribirme]
+Bot: ¿Cada cuánto te aviso?
+     [⚡ Inmediata (Premium)]  [1 vez al día]  [1 vez a la semana]
+User: [1 vez al día]
+Bot: ¿Por cuánto tiempo? [1 día]  [1 semana]   (Premium: +1 mes / Sin vencimiento)
+User: [1 semana]
+Bot: ✅ Alerta creada · Obra · Todas · diaria · vence en 1 semana
+     Gestiónala en /alertas
+```
+
+### 10.4 Sub-flujo: agregar filtro "Entidad" (resolvedor compartido)
+
+El usuario **no necesita el RUC**: escribe nombre, sigla o RUC y el bot resuelve
+contra `entities` (pg_trgm) mostrando el RUC en cada opción.
+
+```
+User: [➕ Agregar filtro] → [🏢 Entidad]
+Bot:  Escribe el nombre, sigla o RUC. Ej: "GORE Piura", "Muni Sullana", 20154265061
+User: Piura
+Bot:  Encontré varias, ¿cuál?
+      ▼  GOBIERNO REGIONAL DE PIURA (RUC 20154...)
+         MUNICIPALIDAD PROVINCIAL DE PIURA (RUC ...)
+         HOSPITAL SANTA ROSA — PIURA (...)
+      [No es ninguna / refinar]
+User: [GOBIERNO REGIONAL DE PIURA]
+Bot:  ✅ Filtros actuales: Obra + GOBIERNO REGIONAL DE PIURA
+      [🔍 Buscar ahora]  [➕ Agregar filtro]
+```
+
+Casos borde:
+- **RUC pegado** → match directo, se salta la lista ("✅ … confirmado por RUC").
+- **Demasiadas coincidencias (>10)** → "Hay 312 con 'muni'. Sé más específico o pega
+  el RUC." + opción `[📄 Ver directorio de <depto>]` (PDF de respaldo).
+- **0 en cache** → el worker abre el modal de entidad de SEACE, puebla `entities` y
+  reintenta (depende del pre-crawl de entidades, F4.5).
+
+**Resolvedor compartido**: el mismo componente se usa standalone (Módulo 5,
+`/entidad` o "🔎 Consultar entidad"); al resolver, ofrece
+`[📅 Ver anuncios futuros de esta entidad]` y `[🔔 Crear alerta]` para enlazar de
+vuelta a este flujo. Con entidad elegida, la alerta es **A1**; sin ella, **A2**.
+
+### 10.5 Tarjeta ACF (resultados ≤5) — distinta a la genérica §2.6
+
+ACF **no tiene ficha/bases/cronograma** (sin `nidProceso`). La tarjeta lleva solo
+datos + descripción truncada:
+
+```
+1️⃣ MUNICIPALIDAD DISTRITAL DE KAÑARIS
+📅 Publicado 29/05/2026 · 📐 Consultoría de Obra
+🗓️ Conv. aprox. 03/08/2026 · ⏱️ 45 días
+"Supervisión de la obra Mejoramiento y Ampliación del Servicio de Atención de
+ Salud Básicos en La Succha…"
+[Ver descripción completa]
+```
+
+`[🔔 Suscribirme]` va en el mensaje final (no por tarjeta).
+
+### 10.6 PDF "ficha por anuncio" (resultados >5)
+
+Umbral: **>5 → PDF**. Se **renderiza desde las filas de `processes`** (no del xlsx),
+una ficha por anuncio con la descripción completa (formato elegido en §10, ver
+mockup en la decisión de producto). Generado **al vuelo** en el worker (sin guardar,
+para no servir PDFs obsoletos: la data ACF cambia a diario). 10 columnas =
+entidad, publicación, tipo, objeto, descripción, alcance, cantidad, plazo, conv.
+
+### 10.7 Reglas transversales
+
+- **Objeto siempre primero y obligatorio.** Sin objeto no hay "Buscar ahora".
+- **Empujón suave** solo cuando se busca sin ningún filtro de alcance (camino A2).
+- **Frecuencia/duración** gateadas por tier (`09` §2.3). Copy: la opción `hourly` es
+  **"⚡ Inmediata (al detectar)"** — nunca "tiempo real" ni "instantáneo".
+- **Estado del flujo en Redis** (`conv:{phone}`): `{ flow:'acf-search', step,
+  filters:{ objeto, entityRuc?, tipoSeleccionIds?, fechaDesde?, fechaHasta? } }`.
+  El menú dinámico se re-pinta desde `filters`.
+- **Suscribirse en 2 puntos**: post-búsqueda (hereda `filters`) y desde el menú
+  (arma `filters` y guarda). Ambos → mismo `POST /subscriptions`.
