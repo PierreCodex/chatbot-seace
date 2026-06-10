@@ -23,8 +23,7 @@
             "required": true,
             "data-source": [
               { "id": "daily", "title": "Diaria" },
-              { "id": "weekly", "title": "Semanal" },
-              { "id": "hourly", "title": "⚡ Inmediata (Premium)" }
+              { "id": "weekly", "title": "Semanal" }
             ]
           },
           {
@@ -34,14 +33,8 @@
             "required": true,
             "data-source": [
               { "id": "1d", "title": "1 día" },
-              { "id": "1w", "title": "1 semana" },
-              { "id": "1mo", "title": "1 mes (Premium)" },
-              { "id": "indef", "title": "Indefinida (Premium)" }
+              { "id": "1w", "title": "1 semana" }
             ]
-          },
-          {
-            "type": "TextCaption",
-            "text": "Las opciones Premium se activan al mejorar tu plan."
           },
           {
             "type": "Footer",
