@@ -39,6 +39,29 @@ function makeRow(overrides: Partial<ProcessRow> = {}): ProcessRow {
   return merged;
 }
 
+function makeAcfRow(overrides: Partial<ProcessRow> = {}): ProcessRow {
+  return makeRow({
+    tab: 'anuncios_futuros',
+    nomenclatura: null,
+    versionSeace: null,
+    nidProceso: null,
+    nidConvocatoria: null,
+    entityRuc: null,
+    valorReferencial: null,
+    moneda: null,
+    codigoSnip: null,
+    codigoCui: null,
+    entityNombre: 'MUNICIPALIDAD DISTRITAL DE CERRO COLORADO',
+    objeto: 'obra',
+    descripcion: 'Mejoramiento de pistas y veredas',
+    alcance: 'Ejecución de obra de infraestructura vial',
+    cantidad: '1',
+    plazoDias: 300,
+    fechaAproxConv: new Date('2026-07-20T05:00:00Z'),
+    ...overrides,
+  });
+}
+
 describe('PrismaProcessesRepo', () => {
   const repo = new PrismaProcessesRepo(prisma as never);
 
@@ -69,6 +92,29 @@ describe('PrismaProcessesRepo', () => {
     const r2 = await repo.upsertMany([updated]);
     expect(r2).toMatchObject({ inserted: 0, updated: 1, unchanged: 0 });
     expect(r2.ids).toHaveLength(1);
+  });
+
+  it('upsertMany (ACF sin nomenclatura) deduplica por content_hash: 2 idénticas → 1 insert + 1 unchanged', async () => {
+    const row = makeAcfRow();
+    const r1 = await repo.upsertMany([row]);
+    expect(r1).toMatchObject({ inserted: 1, updated: 0, unchanged: 0 });
+    const r2 = await repo.upsertMany([row]);
+    expect(r2).toMatchObject({ inserted: 0, updated: 0, unchanged: 1 });
+    expect(r2.ids[0]).toBe(r1.ids[0]); // misma fila física
+    const count = await prisma.process.count({ where: { tab: 'anuncios_futuros' } });
+    expect(count).toBe(1);
+  });
+
+  it('upsertMany (ACF) inserta como nuevas las filas con content_hash distinto', async () => {
+    const a = makeAcfRow();
+    const b = makeAcfRow({
+      entityNombre: 'GOBIERNO REGIONAL DE PIURA',
+      descripcion: 'Adquisición de equipos médicos',
+    });
+    const r = await repo.upsertMany([a, b]);
+    expect(r.inserted).toBe(2);
+    const count = await prisma.process.count({ where: { tab: 'anuncios_futuros' } });
+    expect(count).toBe(2);
   });
 
   it('findByFilters filtra por objeto + entidad y respeta freshness', async () => {

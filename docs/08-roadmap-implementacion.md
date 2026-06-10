@@ -420,22 +420,24 @@ psql $DATABASE_URL -c "select entity_nombre, fecha_aprox_conv, plazo_dias from p
 ```
 
 **Tareas concretas**:
-- [ ] `anuncios-futuros.strategy.ts` (tab `anuncios_futuros`) contra la interfaz real
-      (`07` §4.1): `switchTo` (`#tbBuscador:tab7`), `applyFilters` (objeto + entidad A1/A2),
-      `search`, `parse`, `goToNextPage`. **Sin** `exportExcel`.
-- [ ] Parser de las **10 columnas ACF** → `ProcessRow` (entidad, fecha pub, tipo, objeto,
-      descripción, alcance, cantidad, plazo, fecha aprox. conv.). Sin nomenclatura/nidProceso.
-- [ ] Registrar en `TabStrategyRegistry`.
-- [ ] Migración: **índice único parcial** `(tab, content_hash) where tab='anuncios_futuros'`
-      + `upsertMany` por pestaña (`07` §3.5, `02` D6).
-- [ ] Spec del parser con **fixture HTML real** de la pestaña ACF.
+- [x] `anuncios-futuros.strategy.ts` (tab `anuncios_futuros`) contra la interfaz real
+      (`07` §4.1): `switchTo` (`#tbBuscador:tab7`), `applyFilters` (objeto obligatorio +
+      keyword opcional), `search`, `parse`, `goToNextPage`. **Sin** `exportExcel`.
+      El filtro por **entidad NO va por scrape** — se resuelve en SQL (fan-out, `09` §2.1).
+- [x] Parser de las **10 columnas ACF** (`parseAnunciosFuturos`) → `ProcessRow`. Sin
+      nomenclatura/nidProceso. Hash de identidad `hashAcfContent`.
+- [x] Registrar en `TabStrategyRegistry` + provider en `SeaceScraperModule`.
+- [x] Migración: **índice único parcial** `(tab, content_hash) where tab='anuncios_futuros'`
+      (`20260610040000_...`) + `upsertMany` deduplica ACF por `content_hash` (`07` §3.5, `02` D6).
+- [x] Spec del parser con **fixture HTML representativo** de la pestaña ACF.
 
 **Test de validación (gate)**:
-- [ ] `anuncios-futuros.parser.spec.ts` (**fixture HTML real** ACF): las 10 columnas →
-      `ProcessRow` correctas, incl. caso vacío.
-- [ ] `processes.repo` spec contra **BD dev**: 2 filas ACF idénticas → 1 insert + 1
-      update (dedup por `content_hash`); 2 distintas → 2 inserts.
-- [ ] (opcional) e2e live: `POST /dev/scrape {tab:anuncios_futuros}` produce filas reales.
+- [x] `anuncios-futuros.parser.spec.ts` (fixture ACF): 10 columnas → `ProcessRow`, objetos,
+      fechas UTC, contentHash estable/distinto, caso vacío. **8/8 verde.**
+- [x] `processes.repo` spec contra **BD dev**: 2 filas ACF idénticas → 1 insert + 1
+      unchanged (dedup `content_hash`); 2 distintas → 2 inserts. **6/6 verde.**
+- [ ] (opcional) e2e live: `POST /dev/scrape {tab:anuncios_futuros}` produce filas reales
+      (requiere worker + SEACE en vivo; ~3 min, riesgo reCAPTCHA).
 
 **Lo que NO entra en F4.6**: bot/UX (agente UX), PDF, crawler programado, alertas.
 

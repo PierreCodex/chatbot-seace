@@ -9,6 +9,7 @@ import { EntityRowsParser } from './parsers/entity-rows.parser';
 import { HtmlRowsParser } from './parsers/html-rows.parser';
 import { SeaceAdapter } from './seace.adapter';
 import { SessionManager } from './session/session.manager';
+import { AnunciosFuturosStrategy } from './strategies/anuncios-futuros.strategy';
 import { ProcedimientosStrategy } from './strategies/procedimientos.strategy';
 import { TabStrategyRegistry } from './strategies/tab-strategy.registry';
 
@@ -21,6 +22,7 @@ import { TabStrategyRegistry } from './strategies/tab-strategy.registry';
     HtmlRowsParser,
     EntityRowsParser,
     ProcedimientosStrategy,
+    AnunciosFuturosStrategy,
     TabStrategyRegistry,
     EntityModalScraper,
     { provide: SCRAPER_PORT, useClass: SeaceAdapter },

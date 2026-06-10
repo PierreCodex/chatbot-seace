@@ -47,12 +47,27 @@ export class PrismaProcessesRepo implements ProcessesRepoPort {
 
     for (const r of rows) {
       if (!r.nomenclatura || r.versionSeace == null) {
-        const created = await this.prisma.process.create({
-          data: this.toCreate(r),
+        // Filas sin nomenclatura (ACF): la identidad es el contentHash. Dedup
+        // por (tab, content_hash) — el índice único parcial lo garantiza en BD.
+        const existing = await this.prisma.process.findFirst({
+          where: { tab: r.tab, contentHash: r.contentHash },
           select: { id: true },
         });
-        ids.push(created.id);
-        inserted++;
+        if (existing) {
+          await this.prisma.process.update({
+            where: { id: existing.id },
+            data: { scrapedAt: new Date() },
+          });
+          ids.push(existing.id);
+          unchanged++;
+        } else {
+          const created = await this.prisma.process.create({
+            data: this.toCreate(r),
+            select: { id: true },
+          });
+          ids.push(created.id);
+          inserted++;
+        }
         continue;
       }
 

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { TabName } from '../../../../ports/persistence/types';
+import { AnunciosFuturosStrategy } from './anuncios-futuros.strategy';
 import { ProcedimientosStrategy } from './procedimientos.strategy';
 import type { TabStrategy } from './tab.strategy';
 
@@ -7,8 +8,11 @@ import type { TabStrategy } from './tab.strategy';
 export class TabStrategyRegistry {
   private readonly strategies: Map<TabName, TabStrategy>;
 
-  constructor(procedimientos: ProcedimientosStrategy) {
-    this.strategies = new Map<TabName, TabStrategy>([['procedimientos', procedimientos]]);
+  constructor(procedimientos: ProcedimientosStrategy, anunciosFuturos: AnunciosFuturosStrategy) {
+    this.strategies = new Map<TabName, TabStrategy>([
+      ['procedimientos', procedimientos],
+      ['anuncios_futuros', anunciosFuturos],
+    ]);
   }
 
   get(tab: TabName): TabStrategy {
