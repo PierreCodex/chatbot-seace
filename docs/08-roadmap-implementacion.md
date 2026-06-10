@@ -436,8 +436,10 @@ psql $DATABASE_URL -c "select entity_nombre, fecha_aprox_conv, plazo_dias from p
       fechas UTC, contentHash estable/distinto, caso vacío. **8/8 verde.**
 - [x] `processes.repo` spec contra **BD dev**: 2 filas ACF idénticas → 1 insert + 1
       unchanged (dedup `content_hash`); 2 distintas → 2 inserts. **6/6 verde.**
-- [ ] (opcional) e2e live: `POST /dev/scrape {tab:anuncios_futuros}` produce filas reales
-      (requiere worker + SEACE en vivo; ~3 min, riesgo reCAPTCHA).
+- [x] e2e live: `POST /dev/scrape {tab:anuncios_futuros, objeto:obra}` → **40 filas
+      reales** de SEACE (3 páginas, ~169s, **sin bloqueo reCAPTCHA**), persistidas en BD
+      (40 inserts, 40 hashes distintos). Segunda corrida → **`unchanged=40`** (dedup por
+      `content_hash` probado en vivo, BD estable en 40). **F4.6 ✅ done.**
 
 **Lo que NO entra en F4.6**: bot/UX (agente UX), PDF, crawler programado, alertas.
 
