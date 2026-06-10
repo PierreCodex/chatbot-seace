@@ -158,6 +158,18 @@ export class KapsoAdapter implements MessagingPort {
         };
       }
 
+      case 'document':
+        return {
+          messaging_product: 'whatsapp',
+          to: message.to,
+          type: 'document',
+          document: {
+            link: message.link,
+            filename: message.filename,
+            ...(message.caption ? { caption: message.caption } : {}),
+          },
+        };
+
       default:
         throw new Error(`Unsupported outbound message kind`);
     }

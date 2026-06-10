@@ -56,15 +56,21 @@ Tipos compartidos: `ProcessRow`, `SearchFilters`, `TabName` (`ports/persistence/
 **Progreso** (marca `[x]` al cerrar cada fase):
 - [x] UX-1 · Menú + Onboarding
 - [x] UX-2 · Búsqueda ACF (variante A + empujón suave) ⭐
-- [~] UX-3 · Resolvedor de entidad — **inline hecho** (dentro de ACF); standalone `/entidad` pendiente
+- [x] UX-3 · Resolvedor de entidad — inline (en ACF) **y** standalone (`entity-resolver`)
 - [ ] UX-4 · Suscripciones con tier
-- [~] UX-5 · Resultados: tarjetas + PDF — **tarjetas ≤5 / resumen >5 hechos**; PDF (`document`) pendiente
+- [~] UX-5 · Resultados: tarjetas + PDF — tarjetas ≤5 / resumen >5 **y kind `document`
+      listo**; falta que backend provea la URL del PDF (`modules/files`)
 - [ ] UX-6 · Integración + pulido
 
-> **Hecho** (este avance): `menu.presenter.ts` migrado a menú ACF; `main-menu.flow.ts`
+> **Hecho** (avance 1): `menu.presenter.ts` migrado a menú ACF; `main-menu.flow.ts`
 > enruta a `search-anuncios`; `search-anuncios.flow.ts` (variante A + empujón suave +
-> resolvedor de entidad inline); `acf-results.presenter.ts` (tarjetas/resumen). Specs:
-> 20/20 verdes en `test/modules/bot/`. `search-procesos.flow.ts` queda como legacy F4.
+> resolvedor de entidad inline); `acf-results.presenter.ts` (tarjetas/resumen).
+> `search-procesos.flow.ts` queda como legacy F4.
+>
+> **Hecho** (avance 2): UX-3 standalone (`entity-resolver.flow.ts` + `entity.presenter.ts`,
+> handoff a ACF vía `startWithEntity`) y kind `document` en `MessagingPort` + `KapsoAdapter`
+> (PDF para >5 cuando backend provea `pdfUrl`). Suite del bot: **33/33** verde
+> (`test/modules/bot/` + `test/adapters/messaging/`). Total repo: **75/75**.
 
 ### UX-1 · Menú + Onboarding (1 día) — ✅ HECHO
 - [x] `menu.presenter.ts`: List con **📅 Anuncios futuros · 🔔 Mis alertas ·
@@ -87,15 +93,17 @@ Implementa **`06` §10.3 / §10.7**.
 - [ ] _Pendiente (refinamiento)_: filtros **tipo de selección** y **fechas** vía WhatsApp
       Flow (hoy el menú solo expone objeto + entidad).
 
-### UX-3 · Resolvedor de entidad (2 días) — 🟡 PARCIAL
+### UX-3 · Resolvedor de entidad (2 días) — ✅ HECHO
 Implementa **`06` §10.4**. Componente **compartido** (inline + standalone).
 - [x] **Inline** (dentro de ACF): texto → `EntitySearchService` → 0/1/varios →
       List de coincidencias (muestra RUC) → tap → vuelve al menú con la entidad.
-- [ ] Casos borde extra: RUC pegado (match directo del backend), >10 (refinar / PDF
-      directorio).
-- [ ] **Standalone** (`/entidad` / "🔎 Consultar entidad"): muestra datos +
-      `[📅 Ver anuncios] [🔔 Crear alerta]`. (hoy es placeholder en el menú)
-- [ ] **Entregable**: `entity-resolver.flow.spec.ts` (el standalone).
+- [x] **Standalone** (`entity-resolver.flow.ts`, desde "🔎 Consultar entidad"): resuelve
+      por nombre/sigla/RUC → ficha (`entity.presenter.ts`) con
+      `[📅 Ver anuncios] [🔔 Crear alerta] [Menú]`. "Ver anuncios" hace **handoff** al
+      flujo ACF con la entidad ya fijada (`SearchAnunciosFlow.startWithEntity`).
+- [x] **Entregable**: `entity-resolver.flow.spec.ts` (9). Verde.
+- [ ] _Pendiente_: "Crear alerta" es placeholder hasta UX-4; el RUC pegado/`>10`
+      se cubrirá cuando el backend exponga match directo por RUC.
 
 ### UX-4 · Suscripciones con tier (3 días)
 Implementa **`09` §6** y **§2.2-2.3**.
@@ -115,10 +123,13 @@ Implementa **`06` §10.5 / §10.6**.
       conv. aprox., plazo, descripción **truncada**). **Sin** ficha/bases/cronograma.
 - [x] **>5** → resumen ("Encontré N… los 5 más recientes") + 5 tarjetas. Mensaje final
       `[🔔 Suscribirme] [✏️ Refinar] [Menú]`.
-- [ ] **>5 → documento PDF**: requiere **nuevo kind `document` en `MessagingPort`** +
-      soporte en `KapsoAdapter` (acordar con backend, toca `ports/`). El render del PDF
-      lo provee el backend (`modules/files`). Hoy se muestran las 5 + nota "pronto: PDF".
-- [x] **Entregable**: `acf-results.presenter.spec.ts` (4) — ≤5, >5, tarjeta. Verde.
+- [x] **>5 → documento PDF**: kind `document` añadido a `MessagingPort` + payload en
+      `KapsoAdapter` (Meta Cloud API `type: document`, link+filename+caption). El
+      presenter adjunta el PDF si recibe `pdfUrl` (>5); si no, degrada a 5 tarjetas + nota.
+- [ ] _Pendiente (backend)_: render del PDF y URL hospedada (`modules/files`) para
+      poblar `pdfUrl`. El contrato y el envío ya están listos en UX.
+- [x] **Entregable**: `acf-results.presenter.spec.ts` (6) — ≤5, >5, PDF >5, sin-PDF ≤5,
+      tarjeta + `kapso-adapter.document.spec.ts` (2). Verde.
 
 ### UX-6 · Integración + pulido (1-2 días)
 - [ ] Conectar con la `AnunciosFuturosStrategy` real cuando el backend la entregue.
@@ -143,9 +154,9 @@ SEACE**: se inyectan dobles (`{ provide: MESSAGING_PORT, useValue: fake }`, mock
 |---|---|---|---|
 | **UX-1** | `menu.presenter.spec.ts`, `main-menu.flow.spec.ts` | "hola"/intent → menú ACF correcto | ✅ 6/6 |
 | **UX-2** | `search-anuncios.flow.spec.ts` | recorre A2 y A1; objeto obligatorio; empujón suave; menú dinámico | ✅ 10/10 |
-| **UX-3** | `entity-resolver.flow.spec.ts` (standalone) | nombre→lista, RUC directo, >10→refinar; uso standalone | 🟡 inline cubierto en UX-2 |
+| **UX-3** | `entity-resolver.flow.spec.ts` (standalone) | nombre→lista, 1 match→ficha, handoff a ACF | ✅ 9/9 |
 | **UX-4** | `subscribe.flow.spec.ts`, `my-subscriptions.flow.spec.ts` | gating free vs premium; copy sin "tiempo real"; pausar/eliminar/reactivar | ⬜ |
-| **UX-5** | `acf-results.presenter.spec.ts` | ≤5 → tarjetas; >5 → resumen (+PDF pendiente) | 🟡 4/4 (sin PDF) |
+| **UX-5** | `acf-results.presenter.spec.ts`, `kapso-adapter.document.spec.ts` | ≤5 → tarjetas; >5 → resumen + PDF (kind `document`) | ✅ 8/8 (falta URL del backend) |
 | **UX-6** | conversación e2e real por WhatsApp | integración con scraper real + edge cases | ⬜ |
 
 > Regla: un avance no se da por hecho sin su spec verde. El e2e real (UX-6) es el único

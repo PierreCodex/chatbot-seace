@@ -42,6 +42,17 @@ export type OutboundMessage =
       phoneNumberId: string;
       body: string;
       buttons: ButtonOption[];
+    }
+  | {
+      // Documento alojado (PDF de anuncios ACF cuando hay >5 resultados).
+      // El render del PDF lo provee el backend (modules/files); aquí solo se
+      // envía el enlace ya hospedado vía Meta Cloud API.
+      kind: 'document';
+      to: string;
+      phoneNumberId: string;
+      link: string;
+      filename: string;
+      caption?: string;
     };
 
 export interface MessagingPort {

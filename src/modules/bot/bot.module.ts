@@ -4,10 +4,12 @@ import { SearchModule } from '../search/search.module';
 import { ConversationService } from './conversation.service';
 import { ConversationStore } from './conversation.store';
 import { FlowRegistry } from './flow.registry';
+import { EntityResolverFlow } from './flows/entity-resolver.flow';
 import { MainMenuFlow } from './flows/main-menu.flow';
 import { SearchAnunciosFlow } from './flows/search-anuncios.flow';
 import { SearchProcesosFlow } from './flows/search-procesos.flow';
 import { AcfResultsPresenter } from './presenters/acf-results.presenter';
+import { EntityResultsPresenter } from './presenters/entity.presenter';
 import { MenuPresenter } from './presenters/menu.presenter';
 import { WaUsersService } from './wa-users.service';
 import { WebhookController } from './webhook.controller';
@@ -20,8 +22,10 @@ import { WebhookController } from './webhook.controller';
     FlowRegistry,
     MenuPresenter,
     AcfResultsPresenter,
+    EntityResultsPresenter,
     MainMenuFlow,
     SearchAnunciosFlow,
+    EntityResolverFlow,
     SearchProcesosFlow,
     WaUsersService,
     ConversationService,
@@ -31,14 +35,22 @@ import { WebhookController } from './webhook.controller';
         registry: FlowRegistry,
         mainMenu: MainMenuFlow,
         anuncios: SearchAnunciosFlow,
+        entity: EntityResolverFlow,
         searchProcesos: SearchProcesosFlow,
       ) => {
         registry.register(mainMenu);
         registry.register(anuncios);
+        registry.register(entity);
         registry.register(searchProcesos);
         return true;
       },
-      inject: [FlowRegistry, MainMenuFlow, SearchAnunciosFlow, SearchProcesosFlow],
+      inject: [
+        FlowRegistry,
+        MainMenuFlow,
+        SearchAnunciosFlow,
+        EntityResolverFlow,
+        SearchProcesosFlow,
+      ],
     },
   ],
 })

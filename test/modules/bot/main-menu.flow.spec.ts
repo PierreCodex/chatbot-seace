@@ -23,17 +23,28 @@ function makeCtx(input: string): FlowContext {
 const menuMsg = { kind: 'list' } as never;
 const presenter = { build: vi.fn().mockReturnValue(menuMsg) };
 const anuncios = { id: 'search-anuncios', start: vi.fn().mockReturnValue({ messages: ['ACF'] }) };
+const entity = { id: 'entity-resolver', start: vi.fn().mockReturnValue({ messages: ['ENT'] }) };
 const procesos = { id: 'search-procesos', start: vi.fn().mockReturnValue({ messages: ['PROC'] }) };
 
 describe('MainMenuFlow', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const flow = new MainMenuFlow(presenter as any, anuncios as any, procesos as any);
+  const flow = new MainMenuFlow(
+    presenter as never,
+    anuncios as never,
+    entity as never,
+    procesos as never,
+  );
   beforeEach(() => vi.clearAllMocks());
 
   it('enruta "anuncios" al flujo ACF', async () => {
     const r = await flow.handle(makeCtx('anuncios'));
     expect(anuncios.start).toHaveBeenCalledTimes(1);
     expect(r.messages).toEqual(['ACF']);
+  });
+
+  it('enruta "entity" al resolvedor de entidad standalone', async () => {
+    const r = await flow.handle(makeCtx('entity'));
+    expect(entity.start).toHaveBeenCalledTimes(1);
+    expect(r.messages).toEqual(['ENT']);
   });
 
   it('enruta "acf:refine" (botón de resultados) al flujo ACF', async () => {

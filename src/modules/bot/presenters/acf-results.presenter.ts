@@ -9,6 +9,12 @@ export interface AcfPresentContext {
   phoneNumberId: string;
   totalFound: number;
   processes: StoredProcess[];
+  /**
+   * URL del PDF ya hospedado con TODOS los anuncios (lo genera modules/files en
+   * backend). Si está presente y hay >5 resultados, se adjunta como documento.
+   * Si falta, se degrada a las 5 tarjetas + nota.
+   */
+  pdfUrl?: string;
 }
 
 /**
@@ -16,8 +22,8 @@ export interface AcfPresentContext {
  * docs/06-whatsapp-ux.md §10.5/§10.6).
  *
  *  - ≤5 resultados → tarjetas en el chat (descripción truncada). Sin ficha/bases.
- *  - >5 resultados → resumen + las 5 más recientes. El PDF "ficha-por-anuncio"
- *    (UX-5 completo) requiere el kind `document` en MessagingPort, pendiente.
+ *  - >5 resultados → resumen + las 5 más recientes. Si backend provee `pdfUrl`,
+ *    se adjunta además un documento PDF con todos (kind `document`).
  */
 @Injectable()
 export class AcfResultsPresenter {
@@ -32,13 +38,30 @@ export class AcfResultsPresenter {
     }
 
     const top = ctx.processes.slice(0, MAX_CARDS);
+    const hasPdf = ctx.totalFound > MAX_CARDS && !!ctx.pdfUrl;
     const header =
       ctx.totalFound <= MAX_CARDS
         ? `Encontré ${ctx.totalFound} anuncio${ctx.totalFound === 1 ? '' : 's'} de contratación futura:`
-        : `Encontré ${ctx.totalFound} anuncios futuros. Te muestro los ${top.length} más recientes ` +
-          '(pronto: PDF con todos):';
+        : hasPdf
+          ? `Encontré ${ctx.totalFound} anuncios futuros. Te muestro los ${top.length} más recientes ` +
+            'y te adjunto el PDF con todos 👇'
+          : `Encontré ${ctx.totalFound} anuncios futuros. Te muestro los ${top.length} más recientes ` +
+            '(pronto: PDF con todos):';
 
     const cards: OutboundMessage[] = top.map((p) => text(ctx, formatAcfCard(p)));
+
+    const pdf: OutboundMessage[] = hasPdf
+      ? [
+          {
+            kind: 'document',
+            to: ctx.phoneNumber,
+            phoneNumberId: ctx.phoneNumberId,
+            link: ctx.pdfUrl as string,
+            filename: 'anuncios-futuros.pdf',
+            caption: `${ctx.totalFound} anuncios de contratación futura`,
+          },
+        ]
+      : [];
 
     const footer: OutboundMessage = {
       kind: 'buttons',
@@ -52,7 +75,7 @@ export class AcfResultsPresenter {
       ],
     };
 
-    return [text(ctx, header), ...cards, footer];
+    return [text(ctx, header), ...cards, ...pdf, footer];
   }
 }
 

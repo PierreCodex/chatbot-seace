@@ -15,11 +15,12 @@ function makeAcf(o: Partial<StoredProcess> = {}): StoredProcess {
   } as unknown as StoredProcess;
 }
 
-const present = (processes: StoredProcess[], totalFound: number) => ({
+const present = (processes: StoredProcess[], totalFound: number, pdfUrl?: string) => ({
   phoneNumber: '+51999',
   phoneNumberId: 'pn1',
   totalFound,
   processes,
+  pdfUrl,
 });
 
 describe('AcfResultsPresenter', () => {
@@ -47,6 +48,26 @@ describe('AcfResultsPresenter', () => {
     expect(msgs).toHaveLength(1 + 5 + 1);
     const header = msgs[0];
     if (header.kind === 'text') expect(header.body).toContain('40');
+  });
+
+  it('>5 con pdfUrl → adjunta documento PDF y el header lo anuncia', () => {
+    const procs = Array.from({ length: 8 }, () => makeAcf());
+    const msgs = p.build(present(procs, 40, 'https://files.example/acf.pdf'));
+    // header + 5 tarjetas + documento + footer
+    expect(msgs).toHaveLength(1 + 5 + 1 + 1);
+    const doc = msgs.find((m) => m.kind === 'document');
+    expect(doc).toBeDefined();
+    if (doc && doc.kind === 'document') {
+      expect(doc.link).toBe('https://files.example/acf.pdf');
+      expect(doc.filename).toBe('anuncios-futuros.pdf');
+    }
+    const header = msgs[0];
+    if (header.kind === 'text') expect(header.body).toContain('PDF');
+  });
+
+  it('≤5 NO adjunta documento aunque venga pdfUrl', () => {
+    const msgs = p.build(present([makeAcf()], 1, 'https://files.example/acf.pdf'));
+    expect(msgs.some((m) => m.kind === 'document')).toBe(false);
   });
 
   it('la tarjeta incluye entidad, plazo y conv. aprox. (sin ficha/bases)', () => {

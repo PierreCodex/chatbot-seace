@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { OutboundMessage } from '../../../ports/messaging.port';
 import { MenuPresenter } from '../presenters/menu.presenter';
 import type { Flow, FlowContext, FlowResult } from '../types';
+import { EntityResolverFlow } from './entity-resolver.flow';
 import { SearchAnunciosFlow } from './search-anuncios.flow';
 import { SearchProcesosFlow } from './search-procesos.flow';
 
@@ -12,6 +13,7 @@ export class MainMenuFlow implements Flow {
   constructor(
     private readonly presenter: MenuPresenter,
     private readonly anunciosFlow: SearchAnunciosFlow,
+    private readonly entityFlow: EntityResolverFlow,
     private readonly searchFlow: SearchProcesosFlow,
   ) {}
 
@@ -37,10 +39,8 @@ export class MainMenuFlow implements Flow {
           'Tus alertas llegan en la próxima fase 🔔. Mientras tanto, revisa los anuncios futuros 👇',
         );
       case 'entity':
-        return this.replyAndShowMenu(
-          ctx,
-          'La consulta de entidad directa llega pronto 🔎. Por ahora puedes filtrar por entidad dentro de _Anuncios futuros_.',
-        );
+      case 'entidad':
+        return this.entityFlow.start(ctx);
       case 'help':
         return this.replyAndShowMenu(
           ctx,

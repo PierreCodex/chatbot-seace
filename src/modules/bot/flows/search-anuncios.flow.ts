@@ -74,6 +74,20 @@ export class SearchAnunciosFlow implements Flow {
     };
   }
 
+  /**
+   * Entrada desde el resolvedor de entidad standalone (UX-3): la entidad ya está
+   * elegida; solo falta el objeto (obligatorio). Tras elegirlo, el menú dinámico
+   * ya muestra la entidad fijada.
+   */
+  startWithEntity(ctx: FlowContext, entity: { ruc: string; nombre: string }): FlowResult {
+    return {
+      messages: [this.objetoListMessage(ctx)],
+      nextFlowId: FLOW_ID,
+      nextStep: 'awaiting-objeto',
+      dataPatch: { objeto: undefined, entity, entityCandidates: undefined },
+    };
+  }
+
   private onObjeto(ctx: FlowContext, data: FlowData): FlowResult {
     const raw = parseId(ctx.input, 'objeto');
     if (!raw || !(raw in OBJETO_LABELS)) {
