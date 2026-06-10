@@ -40,3 +40,16 @@ prisma/.tmp/
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code / tooling de agentes (config local + skills instaladas, no parte de la app)
+.claude/
+.agents/
+opencode.json
+skills-lock.json
+
+# Scratch de playwright-cli: volcados YAML del DOM de SEACE (desechables)
+modal*.yml
+res-*.yml
+seace-*.yml
+tab-*.yml
+ngrok-temp.yml

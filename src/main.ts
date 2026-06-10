@@ -8,7 +8,7 @@ import type { Env } from './config/env.schema';
 async function bootstrap(): Promise<void> {
   process.env.SERVICE = process.env.SERVICE ?? 'api';
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const app = await NestFactory.create(AppModule, { bufferLogs: false, rawBody: true });
   const config = app.get(ConfigService<Env, true>);
   const port = config.get('API_PORT', { infer: true });
 

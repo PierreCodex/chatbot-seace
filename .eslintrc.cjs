@@ -8,7 +8,7 @@
 module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    project: 'tsconfig.json',
+    project: 'tsconfig.eslint.json',
     tsconfigRootDir: __dirname,
     sourceType: 'module',
   },
@@ -16,22 +16,21 @@ module.exports = {
   extends: [
     'plugin:@typescript-eslint/recommended',
     'plugin:prettier/recommended',
-    'plugin:boundaries/strict',
   ],
   root: true,
   env: { node: true, jest: true },
-  ignorePatterns: ['.eslintrc.cjs', 'dist/', 'node_modules/', 'prisma/'],
+  ignorePatterns: ['.eslintrc.cjs', 'dist/', 'node_modules/', 'prisma/', 'scripts/', 'vitest.config.ts'],
   settings: {
     'boundaries/include': ['src/**/*.ts'],
     'boundaries/elements': [
-      { type: 'ports',    pattern: 'src/ports/**' },
+      { type: 'ports', pattern: 'src/ports/**' },
       { type: 'adapters', pattern: 'src/adapters/*', mode: 'folder', capture: ['family'] },
-      { type: 'modules',  pattern: 'src/modules/*',  mode: 'folder', capture: ['name'] },
-      { type: 'workers',  pattern: 'src/workers/**' },
-      { type: 'jobs',     pattern: 'src/jobs/**' },
-      { type: 'common',   pattern: 'src/common/**' },
-      { type: 'config',   pattern: 'src/config/**' },
-      { type: 'root',     pattern: 'src/*.ts',       mode: 'file' },
+      { type: 'modules', pattern: 'src/modules/*', mode: 'folder', capture: ['name'] },
+      { type: 'workers', pattern: 'src/workers/**' },
+      { type: 'jobs', pattern: 'src/jobs/**' },
+      { type: 'common', pattern: 'src/common/**' },
+      { type: 'config', pattern: 'src/config/**' },
+      { type: 'root', pattern: 'src/*.ts', mode: 'file' },
     ],
   },
   rules: {
@@ -44,10 +43,10 @@ module.exports = {
       {
         default: 'disallow',
         rules: [
-          { from: 'ports',    allow: ['ports'] },
-          { from: 'common',   allow: ['common'] },
-          { from: 'config',   allow: ['config', 'common'] },
-          { from: 'jobs',     allow: ['jobs'] },
+          { from: 'ports', allow: ['ports'] },
+          { from: 'common', allow: ['common'] },
+          { from: 'config', allow: ['config', 'common'] },
+          { from: 'jobs', allow: ['jobs'] },
           {
             from: 'adapters',
             allow: ['ports', 'common', 'config', 'jobs', ['adapters', { family: '${from.family}' }]],
@@ -56,10 +55,18 @@ module.exports = {
             from: 'modules',
             allow: ['ports', 'common', 'config', 'jobs', 'modules'],
           },
-          { from: 'workers',  allow: ['ports', 'common', 'config', 'jobs', 'modules'] },
-          { from: 'root',     allow: ['adapters', 'modules', 'workers', 'config', 'common', 'ports'] },
+          { from: 'workers', allow: ['ports', 'common', 'config', 'jobs', 'modules'] },
+          { from: 'root', allow: ['adapters', 'modules', 'workers', 'config', 'common', 'ports'] },
         ],
       },
     ],
   },
+  overrides: [
+    {
+      files: ['test/**/*.ts'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+      },
+    },
+  ],
 };

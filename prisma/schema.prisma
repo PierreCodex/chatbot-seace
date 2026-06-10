@@ -1,5 +1,5 @@
-// Prisma schema — Phase 0 (minimal, only validates DB connectivity).
-// El schema completo se llena en F1 desde docs/05-schema-supabase.md.
+// Fuente de verdad del schema. Las migraciones SQL manuales viven en
+// prisma/migrations/<ts>_*/migration.sql junto a las auto-generadas.
 
 generator client {
   provider = "prisma-client-js"
@@ -11,9 +11,334 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model HealthCheck {
-  id        String   @id @default(uuid()) @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
+// =====================================================================
+// ENUMS
+// =====================================================================
 
-  @@map("health_checks")
+enum ProcesoTab {
+  procedimientos
+  anuncios_futuros
+  expresiones_interes
+  difusion_requerimientos
+  orden_compra_servicio
+  condiciones_contratacion
+}
+
+enum ObjetoContratacion {
+  bien
+  servicio
+  obra
+  consultoria_obra
+}
+
+enum SubFrequency {
+  hourly
+  daily
+  weekly
+}
+
+enum SubStatus {
+  active
+  paused
+  expired
+  deleted
+}
+
+enum UserPlan {
+  free
+  premium
+}
+
+enum NotifKind {
+  search_result
+  subscription_hit
+  file_delivery
+  system_message
+  template
+}
+
+enum NotifStatus {
+  queued
+  sent
+  delivered
+  read
+  failed
+}
+
+enum JobStatus {
+  queued
+  running
+  completed
+  failed
+  dlq
+}
+
+enum FileOrigin {
+  seace_repository
+  export_excel
+  ficha_pdf
+}
+
+// =====================================================================
+// CATÁLOGOS
+// =====================================================================
+
+model Entity {
+  id          String   @id @default(uuid()) @db.Uuid
+  ruc         String   @unique @db.VarChar(11)
+  nombre      String
+  sigla       String?
+  tipoDoc     String?  @map("tipo_doc")
+  ultimoVisto DateTime @default(now()) @map("ultimo_visto") @db.Timestamptz
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt      @map("updated_at") @db.Timestamptz
+
+  processes   Process[]
+
+  @@index([nombre])
+  @@index([sigla])
+  @@map("entities")
+}
+
+// =====================================================================
+// DATOS DE SEACE
+// =====================================================================
+
+model Process {
+  id                String              @id @default(uuid()) @db.Uuid
+  tab               ProcesoTab
+  nomenclatura      String?
+  entityRuc         String?             @map("entity_ruc") @db.VarChar(11)
+  entityNombre      String              @map("entity_nombre")
+  fechaPublicacion  DateTime?           @map("fecha_publicacion") @db.Timestamptz
+  tipoSeleccion     String?             @map("tipo_seleccion")
+  tipoSeleccionId   Int?                @map("tipo_seleccion_id")
+  objeto            ObjetoContratacion?
+  descripcion       String?
+  alcance           String?
+  cantidad          Decimal?            @db.Decimal
+  plazoDias         Int?                @map("plazo_dias")
+  fechaAproxConv    DateTime?           @map("fecha_aprox_conv") @db.Date
+
+  codigoSnip        String?             @map("codigo_snip")
+  codigoCui         String?             @map("codigo_cui")
+  valorReferencial  Decimal?            @map("valor_referencial") @db.Decimal(18, 2)
+  moneda            String?
+  versionSeace      Int?                @map("version_seace") @db.SmallInt
+
+  nidProceso        String?             @map("nid_proceso")
+  nidConvocatoria   String?             @map("nid_convocatoria")
+  urlRepositorio    String?             @map("url_repositorio")
+
+  contentHash       String              @map("content_hash")
+  scrapedAt         DateTime            @default(now()) @map("scraped_at") @db.Timestamptz
+  firstSeenAt       DateTime            @default(now()) @map("first_seen_at") @db.Timestamptz
+  lastChangedAt     DateTime?           @map("last_changed_at") @db.Timestamptz
+
+  raw               Json?
+
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime            @updatedAt      @map("updated_at") @db.Timestamptz
+
+  entity            Entity?             @relation(fields: [entityRuc], references: [ruc])
+  history           ProcessHistory[]
+  subscriptionHits  SubscriptionHit[]
+  files             File[]
+
+  @@unique([tab, nomenclatura, versionSeace], name: "tab_nomenclatura_versionSeace")
+  @@index([entityRuc])
+  @@index([fechaPublicacion(sort: Desc)])
+  @@index([objeto])
+  @@index([nidProceso])
+  @@map("processes")
+}
+
+model ProcessHistory {
+  id          String   @id @default(uuid()) @db.Uuid
+  processId   String   @map("process_id") @db.Uuid
+  snapshot    Json
+  contentHash String   @map("content_hash")
+  observedAt  DateTime @default(now()) @map("observed_at") @db.Timestamptz
+
+  process     Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@index([processId, observedAt(sort: Desc)])
+  @@map("process_history")
+}
+
+// =====================================================================
+// USUARIOS WHATSAPP (sin Supabase Auth)
+// =====================================================================
+
+model WaUser {
+  id            String   @id @default(uuid()) @db.Uuid
+  phoneE164     String   @unique @map("phone_e164") @db.VarChar(20)
+  displayName   String?  @map("display_name")
+  firstSeenAt   DateTime @default(now()) @map("first_seen_at") @db.Timestamptz
+  lastActiveAt  DateTime @default(now()) @map("last_active_at") @db.Timestamptz
+  totalMessages BigInt   @default(0) @map("total_messages")
+  language      String   @default("es-PE")
+  blocked       Boolean  @default(false)
+  plan          UserPlan @default(free)
+  planExpiresAt DateTime? @map("plan_expires_at") @db.Timestamptz
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt      @map("updated_at") @db.Timestamptz
+
+  subscriptions Subscription[]
+  searches      Search[]
+  notifications Notification[]
+  conversation  Conversation?
+
+  @@index([phoneE164])
+  @@map("wa_users")
+}
+
+// =====================================================================
+// SUSCRIPCIONES Y ALERTAS
+// =====================================================================
+
+model Subscription {
+  id               String              @id @default(uuid()) @db.Uuid
+  userId           String              @map("user_id") @db.Uuid
+  tab              ProcesoTab
+  entityRuc        String?             @map("entity_ruc") @db.VarChar(11)
+  tipoSeleccionIds Int[]               @map("tipo_seleccion_ids")
+  objeto           ObjetoContratacion?
+  departamento     String?
+  keyword          String?
+  valorMin         Decimal?            @map("valor_min") @db.Decimal(18, 2)
+  valorMax         Decimal?            @map("valor_max") @db.Decimal(18, 2)
+  frequency        SubFrequency        @default(daily)
+  status           SubStatus           @default(active)
+  expiresAt        DateTime?           @map("expires_at") @db.Timestamptz
+  lastRunAt        DateTime?           @map("last_run_at") @db.Timestamptz
+  lastHitCount     Int                 @default(0) @map("last_hit_count")
+  nextRunAt        DateTime?           @map("next_run_at") @db.Timestamptz
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime            @updatedAt      @map("updated_at") @db.Timestamptz
+
+  user             WaUser              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hits             SubscriptionHit[]
+
+  @@index([status, nextRunAt])
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model SubscriptionHit {
+  id              String       @id @default(uuid()) @db.Uuid
+  subscriptionId  String       @map("subscription_id") @db.Uuid
+  processId       String       @map("process_id") @db.Uuid
+  notifiedAt      DateTime?    @map("notified_at") @db.Timestamptz
+  notificationId  String?      @map("notification_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  process         Process      @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, processId])
+  @@index([subscriptionId, createdAt(sort: Desc)])
+  @@map("subscription_hits")
+}
+
+// =====================================================================
+// HISTORIAL DE BÚSQUEDAS Y NOTIFICACIONES
+// =====================================================================
+
+model Search {
+  id           String     @id @default(uuid()) @db.Uuid
+  userId       String?    @map("user_id") @db.Uuid
+  tab          ProcesoTab
+  filters      Json
+  filtersHash  String?    @map("filters_hash")
+  resultCount  Int?       @map("result_count")
+  resultIds    String[]   @map("result_ids") @db.Uuid
+  source       String
+  durationMs   Int?       @map("duration_ms")
+  error        String?
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  user         WaUser?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([filtersHash, createdAt(sort: Desc)])
+  @@map("searches")
+}
+
+model Notification {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  kind         NotifKind
+  payload      Json
+  status       NotifStatus  @default(queued)
+  kapsoMsgId   String?      @map("kapso_msg_id")
+  error        String?
+  attempts     Int          @default(0) @db.SmallInt
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  sentAt       DateTime?    @map("sent_at") @db.Timestamptz
+  deliveredAt  DateTime?    @map("delivered_at") @db.Timestamptz
+  readAt       DateTime?    @map("read_at") @db.Timestamptz
+
+  user         WaUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("notifications")
+}
+
+// =====================================================================
+// ESTADO CONVERSACIONAL (mirror eventual de Redis)
+// =====================================================================
+
+model Conversation {
+  userId    String    @id @map("user_id") @db.Uuid
+  flow      String?
+  step      String?
+  filters   Json?
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user      WaUser    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("conversations")
+}
+
+// =====================================================================
+// OPERACIONAL
+// =====================================================================
+
+model ScrapeJob {
+  id           String    @id @default(uuid()) @db.Uuid
+  jobType      String    @map("job_type")
+  payload      Json
+  status       JobStatus @default(queued)
+  attempts     Int       @default(0) @db.SmallInt
+  error        String?
+  workerId     String?   @map("worker_id")
+  startedAt    DateTime? @map("started_at") @db.Timestamptz
+  finishedAt   DateTime? @map("finished_at") @db.Timestamptz
+  durationMs   Int?      @map("duration_ms")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([status, createdAt])
+  @@index([jobType, createdAt(sort: Desc)])
+  @@map("scrape_jobs")
+}
+
+model File {
+  id           String     @id @default(uuid()) @db.Uuid
+  processId    String?    @map("process_id") @db.Uuid
+  origin       FileOrigin
+  storagePath  String     @map("storage_path")
+  sizeBytes    BigInt?    @map("size_bytes")
+  mimeType     String?    @map("mime_type")
+  originalName String?    @map("original_name")
+  sha256       String?
+  downloadedAt DateTime   @default(now()) @map("downloaded_at") @db.Timestamptz
+
+  process      Process?   @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@unique([processId, origin, originalName])
+  @@index([processId])
+  @@map("files")
 }
