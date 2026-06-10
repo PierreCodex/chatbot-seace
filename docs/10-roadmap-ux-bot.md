@@ -54,43 +54,48 @@ Tipos compartidos: `ProcessRow`, `SearchFilters`, `TabName` (`ports/persistence/
 ## 3. Fases (cada una con entregable testeable)
 
 **Progreso** (marca `[x]` al cerrar cada fase):
-- [ ] UX-1 · Menú + Onboarding
-- [ ] UX-2 · Búsqueda ACF (variante A + empujón suave) ⭐
-- [ ] UX-3 · Resolvedor de entidad
+- [x] UX-1 · Menú + Onboarding
+- [x] UX-2 · Búsqueda ACF (variante A + empujón suave) ⭐
+- [~] UX-3 · Resolvedor de entidad — **inline hecho** (dentro de ACF); standalone `/entidad` pendiente
 - [ ] UX-4 · Suscripciones con tier
-- [ ] UX-5 · Resultados: tarjetas + PDF
+- [~] UX-5 · Resultados: tarjetas + PDF — **tarjetas ≤5 / resumen >5 hechos**; PDF (`document`) pendiente
 - [ ] UX-6 · Integración + pulido
 
-> **Base ya existente** (placeholders de Procedimientos, **a migrar a ACF**, no reescribir
-> de cero): `main-menu.flow.ts`, `menu.presenter.ts` creados; `search-procesos.flow.ts`
-> existe como referencia del patrón state-machine.
+> **Hecho** (este avance): `menu.presenter.ts` migrado a menú ACF; `main-menu.flow.ts`
+> enruta a `search-anuncios`; `search-anuncios.flow.ts` (variante A + empujón suave +
+> resolvedor de entidad inline); `acf-results.presenter.ts` (tarjetas/resumen). Specs:
+> 20/20 verdes en `test/modules/bot/`. `search-procesos.flow.ts` queda como legacy F4.
 
-### UX-1 · Menú + Onboarding (1 día)
-- [ ] Actualizar `menu.presenter.ts`: List con **📅 Anuncios de Contratación Futura ·
-      🔔 Mis alertas · 🔎 Consultar entidad · ❓ Ayuda**.
-- [ ] `main-menu.flow.ts`: dispatch a los flows nuevos; bienvenida (primer contacto).
-- [ ] **Entregable**: spec de presenter (input→OutboundMessage) + "hola" → menú correcto.
+### UX-1 · Menú + Onboarding (1 día) — ✅ HECHO
+- [x] `menu.presenter.ts`: List con **📅 Anuncios futuros · 🔔 Mis alertas ·
+      🔎 Consultar entidad · ❓ Ayuda**.
+- [x] `main-menu.flow.ts`: dispatch a `search-anuncios` (+ placeholders alertas/entidad/
+      ayuda; legacy `search` de Procedimientos preservado). Bienvenida en el body del menú.
+- [x] **Entregable**: `menu.presenter.spec.ts` (1) + `main-menu.flow.spec.ts` (5). Verde.
 
-### UX-2 · Búsqueda ACF — variante A + empujón suave (3-4 días) ⭐
-Implementa **`06` §10.3 / §10.7** literal.
-- [ ] `search-anuncios.flow.ts`: state machine con estado en Redis
-      `{ flow:'acf-search', step, filters:{ objeto, entityRuc?, tipoSeleccionIds?, fechaDesde?, fechaHasta? } }`.
-- [ ] Paso obligatorio: **objeto** (List 4 items). Sin objeto no hay "Buscar ahora".
-- [ ] **Menú dinámico** con resumen acumulativo: `[🔍 Buscar ahora] [➕ Agregar filtro]`;
-      agregar → entidad / tipo selección (Flow) / fechas (Flow). Re-pinta desde `filters`.
-- [ ] **Empujón suave**: si toca "Buscar ahora" sin filtro de alcance → preguntar
-      `[🌎 Buscar todos] [🏢 Filtrar por entidad]`.
-- [ ] Al confirmar, llama `SearchFacade.search(...)`; si responde async, cerrar con
-      "Buscando… te aviso ✅".
-- [ ] **Entregable**: specs del flow (mockea ports) recorriendo A2 y A1.
+### UX-2 · Búsqueda ACF — variante A + empujón suave (3-4 días) ⭐ — ✅ HECHO
+Implementa **`06` §10.3 / §10.7**.
+- [x] `search-anuncios.flow.ts`: state machine (`awaiting-objeto → menu → soft-nudge →
+      awaiting-entity → entity-disambiguation`), estado en `ConversationState.data`.
+- [x] Paso obligatorio: **objeto** (List 4 items). Sin objeto no hay "Buscar ahora".
+- [x] **Menú dinámico** con resumen acumulativo (`✅ Filtros: Obra · <entidad>`):
+      `[🔍 Buscar ahora] [🏢 Filtrar/Cambiar entidad] [🌎 Quitar entidad]`.
+- [x] **Empujón suave**: "Buscar ahora" sin entidad → `[🌎 Buscar todos] [🏢 Filtrar entidad]`.
+- [x] Llama `SearchFacade.search(tab='anuncios_futuros', ...)`; cached/cache → presenter;
+      queued → "Buscando… te aviso ✅".
+- [x] **Entregable**: `search-anuncios.flow.spec.ts` (10) recorriendo A2 y A1. Verde.
+- [ ] _Pendiente (refinamiento)_: filtros **tipo de selección** y **fechas** vía WhatsApp
+      Flow (hoy el menú solo expone objeto + entidad).
 
-### UX-3 · Resolvedor de entidad (2 días)
+### UX-3 · Resolvedor de entidad (2 días) — 🟡 PARCIAL
 Implementa **`06` §10.4**. Componente **compartido** (inline + standalone).
-- [ ] Texto libre → `EntitySearchService` → List de coincidencias (muestra RUC) → tap.
-- [ ] Casos borde: RUC pegado (match directo), >10 coincidencias (refinar / PDF directorio),
-      0 en cache (el backend hace fallback a SEACE; tú solo muestras "buscando…").
-- [ ] Standalone (`/entidad`): muestra datos + `[📅 Ver anuncios] [🔔 Crear alerta]`.
-- [ ] **Entregable**: spec del flow + sub-uso desde UX-2.
+- [x] **Inline** (dentro de ACF): texto → `EntitySearchService` → 0/1/varios →
+      List de coincidencias (muestra RUC) → tap → vuelve al menú con la entidad.
+- [ ] Casos borde extra: RUC pegado (match directo del backend), >10 (refinar / PDF
+      directorio).
+- [ ] **Standalone** (`/entidad` / "🔎 Consultar entidad"): muestra datos +
+      `[📅 Ver anuncios] [🔔 Crear alerta]`. (hoy es placeholder en el menú)
+- [ ] **Entregable**: `entity-resolver.flow.spec.ts` (el standalone).
 
 ### UX-4 · Suscripciones con tier (3 días)
 Implementa **`09` §6** y **§2.2-2.3**.
@@ -104,16 +109,16 @@ Implementa **`09` §6** y **§2.2-2.3**.
       detectar)"** o "notificación prioritaria". **NUNCA "tiempo real" ni "instantáneo"**.
 - [ ] **Entregable**: spec del flow cubriendo free y premium.
 
-### UX-5 · Presentación de resultados: tarjetas + disparo de PDF (2 días)
+### UX-5 · Presentación de resultados: tarjetas + disparo de PDF (2 días) — 🟡 PARCIAL
 Implementa **`06` §10.5 / §10.6**.
-- [ ] `search-results.presenter.ts` — **≤5** → tarjetas ACF (entidad, fecha pub, tipo,
-      conv. aprox., plazo, descripción **truncada**, `[Ver descripción completa]`).
-      **Sin** ficha/bases/cronograma.
-- [ ] **>5** → resumen corto + adjuntar **documento PDF** (`OutboundMessage` kind
-      `document`). El **render del PDF lo provee el backend** (`modules/files` renderer
-      `ProcessRow[]→Buffer`); tú decides cuándo enviarlo y armas el mensaje.
-- [ ] Mensaje final con `[🔔 Suscribirme] [✏️ Refinar]`.
-- [ ] **Entregable**: spec del presenter con N≤5 y N>5.
+- [x] `acf-results.presenter.ts` — **≤5** → tarjetas ACF (entidad, fecha pub, tipo,
+      conv. aprox., plazo, descripción **truncada**). **Sin** ficha/bases/cronograma.
+- [x] **>5** → resumen ("Encontré N… los 5 más recientes") + 5 tarjetas. Mensaje final
+      `[🔔 Suscribirme] [✏️ Refinar] [Menú]`.
+- [ ] **>5 → documento PDF**: requiere **nuevo kind `document` en `MessagingPort`** +
+      soporte en `KapsoAdapter` (acordar con backend, toca `ports/`). El render del PDF
+      lo provee el backend (`modules/files`). Hoy se muestran las 5 + nota "pronto: PDF".
+- [x] **Entregable**: `acf-results.presenter.spec.ts` (4) — ≤5, >5, tarjeta. Verde.
 
 ### UX-6 · Integración + pulido (1-2 días)
 - [ ] Conectar con la `AnunciosFuturosStrategy` real cuando el backend la entregue.
@@ -134,14 +139,14 @@ SEACE**: se inyectan dobles (`{ provide: MESSAGING_PORT, useValue: fake }`, mock
 `SearchFacade` / `EntitySearchService` / `SubscriptionsService`, fixtures de
 `InboundMessage`). Specs en `vitest`.
 
-| Fase | Spec(s) gate | Valida |
-|---|---|---|
-| **UX-1** | `menu.presenter.spec.ts`, `main-menu.flow.spec.ts` | "hola"/intent → menú ACF correcto |
-| **UX-2** | `search-anuncios.flow.spec.ts` | recorre A2 y A1; objeto obligatorio; empujón suave; re-pinta estado desde Redis (cache mock) |
-| **UX-3** | `entity-resolver.flow.spec.ts` | nombre→lista, RUC directo, >10→refinar, 0→"buscando"; uso standalone |
-| **UX-4** | `subscribe.flow.spec.ts`, `my-subscriptions.flow.spec.ts` | gating free vs premium; copy sin "tiempo real"; pausar/eliminar/reactivar |
-| **UX-5** | `search-results.presenter.spec.ts` | ≤5 → tarjetas; >5 → mensaje con documento PDF |
-| **UX-6** | conversación e2e real por WhatsApp | integración con scraper real + edge cases |
+| Fase | Spec(s) gate | Valida | Estado |
+|---|---|---|---|
+| **UX-1** | `menu.presenter.spec.ts`, `main-menu.flow.spec.ts` | "hola"/intent → menú ACF correcto | ✅ 6/6 |
+| **UX-2** | `search-anuncios.flow.spec.ts` | recorre A2 y A1; objeto obligatorio; empujón suave; menú dinámico | ✅ 10/10 |
+| **UX-3** | `entity-resolver.flow.spec.ts` (standalone) | nombre→lista, RUC directo, >10→refinar; uso standalone | 🟡 inline cubierto en UX-2 |
+| **UX-4** | `subscribe.flow.spec.ts`, `my-subscriptions.flow.spec.ts` | gating free vs premium; copy sin "tiempo real"; pausar/eliminar/reactivar | ⬜ |
+| **UX-5** | `acf-results.presenter.spec.ts` | ≤5 → tarjetas; >5 → resumen (+PDF pendiente) | 🟡 4/4 (sin PDF) |
+| **UX-6** | conversación e2e real por WhatsApp | integración con scraper real + edge cases | ⬜ |
 
 > Regla: un avance no se da por hecho sin su spec verde. El e2e real (UX-6) es el único
 > que necesita WhatsApp/scraper vivos; todo lo demás corre en CI sin infra.

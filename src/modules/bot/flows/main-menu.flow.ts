@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { OutboundMessage } from '../../../ports/messaging.port';
 import { MenuPresenter } from '../presenters/menu.presenter';
 import type { Flow, FlowContext, FlowResult } from '../types';
+import { SearchAnunciosFlow } from './search-anuncios.flow';
 import { SearchProcesosFlow } from './search-procesos.flow';
 
 @Injectable()
@@ -10,27 +11,44 @@ export class MainMenuFlow implements Flow {
 
   constructor(
     private readonly presenter: MenuPresenter,
+    private readonly anunciosFlow: SearchAnunciosFlow,
     private readonly searchFlow: SearchProcesosFlow,
   ) {}
 
   async handle(ctx: FlowContext): Promise<FlowResult> {
     const input = ctx.input.trim();
 
-    // El usuario eligió una opción del menú.
+    // El usuario eligió una opción del menú o un botón de resultados.
     switch (input) {
-      case 'search':
-        return this.searchFlow.start(ctx);
+      // ── Anuncios de Contratación Futura (ACF) — core del MVP ──
+      case 'anuncios':
+      case 'acf:refine':
+        return this.anunciosFlow.start(ctx);
+      case 'acf:subscribe':
+        return this.replyAndShowMenu(
+          ctx,
+          'Las alertas llegan muy pronto 🔔. Por ahora puedo mostrarte anuncios futuros cuando quieras.',
+        );
+
+      // ── Otras entradas del menú (pendientes de fase) ──
       case 'subscriptions':
         return this.replyAndShowMenu(
           ctx,
-          'Las suscripciones llegan en la próxima fase. Mientras tanto, puedes buscar procesos 👇',
+          'Tus alertas llegan en la próxima fase 🔔. Mientras tanto, revisa los anuncios futuros 👇',
+        );
+      case 'entity':
+        return this.replyAndShowMenu(
+          ctx,
+          'La consulta de entidad directa llega pronto 🔎. Por ahora puedes filtrar por entidad dentro de _Anuncios futuros_.',
         );
       case 'help':
         return this.replyAndShowMenu(
           ctx,
-          'Soy ContrataBot 🤖. Te ayudo a buscar procesos del SEACE. Elige _Buscar procesos_ para empezar.',
+          'Soy ContrataBot 🤖. Te aviso de los Anuncios de Contratación Futura del Estado. Elige _Anuncios futuros_, escoge el objeto (obra, bien, etc.) y te muestro lo que viene.',
         );
-      // Buttons que vienen de la pantalla de resultados de búsqueda.
+
+      // ── Procedimientos (legacy F4, accesible por comando/botón) ──
+      case 'search':
       case 'search:refine':
         return this.searchFlow.start(ctx);
       case 'search:subscribe':
@@ -38,6 +56,7 @@ export class MainMenuFlow implements Flow {
           ctx,
           'Pronto podrás suscribirte a esta búsqueda. Por ahora elige otra opción del menú.',
         );
+
       case 'menu:main':
       default:
         // Cualquier otro input (incl. "hola", saludos, basura): mostrar el menú.

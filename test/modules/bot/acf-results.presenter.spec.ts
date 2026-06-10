@@ -1,0 +1,60 @@
+import type { Process as StoredProcess } from '@prisma/client';
+import { describe, expect, it } from 'vitest';
+import { AcfResultsPresenter } from '../../../src/modules/bot/presenters/acf-results.presenter';
+
+function makeAcf(o: Partial<StoredProcess> = {}): StoredProcess {
+  return {
+    entityNombre: 'MUNICIPALIDAD DISTRITAL DE PUQUINA',
+    fechaPublicacion: new Date('2026-06-08T20:32:00Z'),
+    objeto: 'obra',
+    descripcion: 'Mejoramiento de pistas y veredas',
+    tipoSeleccion: 'Licitación Pública',
+    plazoDias: 300,
+    fechaAproxConv: new Date('2026-07-20T05:00:00Z'),
+    ...o,
+  } as unknown as StoredProcess;
+}
+
+const present = (processes: StoredProcess[], totalFound: number) => ({
+  phoneNumber: '+51999',
+  phoneNumberId: 'pn1',
+  totalFound,
+  processes,
+});
+
+describe('AcfResultsPresenter', () => {
+  const p = new AcfResultsPresenter();
+
+  it('0 resultados → un solo mensaje de texto claro', () => {
+    const msgs = p.build(present([], 0));
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].kind).toBe('text');
+  });
+
+  it('≤5 → header + tarjetas + footer con botones ACF', () => {
+    const msgs = p.build(present([makeAcf(), makeAcf({ entityNombre: 'GORE PIURA' })], 2));
+    expect(msgs).toHaveLength(1 + 2 + 1);
+    const footer = msgs[msgs.length - 1];
+    expect(footer.kind).toBe('buttons');
+    if (footer.kind === 'buttons') {
+      expect(footer.buttons.map((b) => b.id)).toEqual(['acf:subscribe', 'acf:refine', 'menu:main']);
+    }
+  });
+
+  it('>5 → muestra 5 tarjetas y el header menciona el total', () => {
+    const procs = Array.from({ length: 8 }, () => makeAcf());
+    const msgs = p.build(present(procs, 40));
+    expect(msgs).toHaveLength(1 + 5 + 1);
+    const header = msgs[0];
+    if (header.kind === 'text') expect(header.body).toContain('40');
+  });
+
+  it('la tarjeta incluye entidad, plazo y conv. aprox. (sin ficha/bases)', () => {
+    const card = p.build(present([makeAcf()], 1))[1];
+    if (card.kind === 'text') {
+      expect(card.body).toContain('PUQUINA');
+      expect(card.body).toContain('300 días');
+      expect(card.body).not.toContain('Ver ficha');
+    }
+  });
+});
