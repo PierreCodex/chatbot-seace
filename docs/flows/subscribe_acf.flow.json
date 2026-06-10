@@ -1,0 +1,61 @@
+{
+  "version": "7.3",
+  "routing_model": {
+    "SUBSCRIBE": []
+  },
+  "screens": [
+    {
+      "id": "SUBSCRIBE",
+      "title": "Crear alerta",
+      "terminal": true,
+      "success": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "¿Cómo quieres que te avise?"
+          },
+          {
+            "type": "Dropdown",
+            "name": "frequency",
+            "label": "Frecuencia",
+            "required": true,
+            "data-source": [
+              { "id": "daily", "title": "Diaria" },
+              { "id": "weekly", "title": "Semanal" },
+              { "id": "hourly", "title": "⚡ Inmediata (Premium)" }
+            ]
+          },
+          {
+            "type": "Dropdown",
+            "name": "duration",
+            "label": "Duración",
+            "required": true,
+            "data-source": [
+              { "id": "1d", "title": "1 día" },
+              { "id": "1w", "title": "1 semana" },
+              { "id": "1mo", "title": "1 mes (Premium)" },
+              { "id": "indef", "title": "Indefinida (Premium)" }
+            ]
+          },
+          {
+            "type": "TextCaption",
+            "text": "Las opciones Premium se activan al mejorar tu plan."
+          },
+          {
+            "type": "Footer",
+            "label": "Crear alerta",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "frequency": "${form.frequency}",
+                "duration": "${form.duration}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
