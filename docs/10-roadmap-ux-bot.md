@@ -73,7 +73,11 @@ Tipos compartidos: `ProcessRow`, `SearchFilters`, `TabName` (`ports/persistence/
 > **Hecho** (avance 2): UX-3 standalone (`entity-resolver.flow.ts` + `entity.presenter.ts`,
 > handoff a ACF vía `startWithEntity`) y kind `document` en `MessagingPort` + `KapsoAdapter`
 > (PDF para >5 cuando backend provea `pdfUrl`). Suite del bot: **33/33** verde
-> (`test/modules/bot/` + `test/adapters/messaging/`). Total repo: **75/75**.
+> (`test/modules/bot/` + `test/adapters/messaging/`).
+>
+> **Hecho** (avance 3): backend del PDF cerrado (`modules/files` + `adapters/files`:
+> renderers ACF/entidades + `FilesService` + `FilesController`) y el **PDF de entidades**
+> (>10 coincidencias) cableado en el resolvedor. Total repo: **79/79**.
 
 ### UX-1 · Menú + Onboarding (1 día) — ✅ HECHO
 - [x] `menu.presenter.ts`: List con **📅 Anuncios futuros · 🔔 Mis alertas ·
@@ -105,8 +109,11 @@ Implementa **`06` §10.4**. Componente **compartido** (inline + standalone).
       `[📅 Ver anuncios] [🔔 Crear alerta] [Menú]`. "Ver anuncios" hace **handoff** al
       flujo ACF con la entidad ya fijada (`SearchAnunciosFlow.startWithEntity`).
 - [x] **Entregable**: `entity-resolver.flow.spec.ts` (9). Verde.
-- [ ] _Pendiente_: "Crear alerta" es placeholder hasta UX-4; el RUC pegado/`>10`
-      se cubrirá cuando el backend exponga match directo por RUC.
+- [x] **>10 coincidencias → PDF de entidades** (`hostEntitiesPdf` + `entitiesOverflowMessages`):
+      listado numerado nombre+RUC; el usuario responde el RUC/nombre exacto. Degrada a lista
+      top-10 si falta `PUBLIC_BASE_URL`.
+- [ ] _Pendiente_: "Crear alerta" es placeholder hasta UX-4; selección por texto en el paso
+      de lista ≤10 (hoy solo tap).
 
 ### UX-4 · Suscripciones con tier (3 días)
 Implementa **`09` §6** y **§2.2-2.3**.
@@ -134,8 +141,11 @@ Implementa **`06` §10.5 / §10.6**.
       + `FilesController` que lo sirve. Cableado en **ambos** caminos: inline
       (`search-anuncios.flow`) y async (`SearchResultsListener`, ahora tab-aware). Si no hay
       `PUBLIC_BASE_URL`, `hostAcfPdf` devuelve `null` y degrada a 5 tarjetas.
+- [x] **Backend del PDF de entidades** (>10): `EntitiesPdfRenderer` + `hostEntitiesPdf`,
+      mismo hosting efímero. Cableado en el resolvedor (`entitiesOverflowMessages`).
 - [x] **Entregable**: `acf-results.presenter.spec.ts` (6) + `kapso-adapter.document.spec.ts` (2)
-      + `acf-pdf.renderer.spec.ts` (2) + `files.service.spec.ts` (4). Verde.
+      + `acf-pdf.renderer.spec.ts` (2) + `entities-pdf.renderer.spec.ts` (2) +
+      `files.service.spec.ts` (5) + `files.controller.spec.ts` (2). Verde.
 
 ### UX-6 · Integración + pulido (1-2 días)
 - [ ] Conectar con la `AnunciosFuturosStrategy` real cuando el backend la entregue.
@@ -162,7 +172,7 @@ SEACE**: se inyectan dobles (`{ provide: MESSAGING_PORT, useValue: fake }`, mock
 | **UX-2** | `search-anuncios.flow.spec.ts` | recorre A2 y A1; objeto obligatorio; empujón suave; menú dinámico | ✅ 10/10 |
 | **UX-3** | `entity-resolver.flow.spec.ts` (standalone) | nombre→lista, 1 match→ficha, handoff a ACF | ✅ 9/9 |
 | **UX-4** | `subscribe.flow.spec.ts`, `my-subscriptions.flow.spec.ts` | gating free vs premium; copy sin "tiempo real"; pausar/eliminar/reactivar | ⬜ |
-| **UX-5** | `acf-results.presenter.spec.ts`, `kapso-adapter.document.spec.ts` | ≤5 → tarjetas; >5 → resumen + PDF (kind `document`) | ✅ 8/8 (falta URL del backend) |
+| **UX-5** | `acf-results.presenter.spec.ts`, `kapso-adapter.document.spec.ts`, renderers + `files.service`/`files.controller` | ≤5 → tarjetas; >5 → resumen + PDF (kind `document`); backend genera/hospeda el PDF | ✅ backend cerrado (falta e2e con `PUBLIC_BASE_URL`) |
 | **UX-6** | conversación e2e real por WhatsApp | integración con scraper real + edge cases | ⬜ |
 
 > Regla: un avance no se da por hecho sin su spec verde. El e2e real (UX-6) es el único

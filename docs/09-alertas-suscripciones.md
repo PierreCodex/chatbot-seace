@@ -87,9 +87,10 @@ Notifier: entrega los hits pendientes según el "digest" del usuario
 - **Notifier:** envía los hits pendientes. La **`frequency` es la cadencia de
   ENTREGA (digest)**, no la de scraping:
   - `hourly` → **"alerta inmediata al detectar"**: se entrega tras la corrida del
-    crawler que detectó el match (frescura máx = cadencia del crawler, 4×/día al
-    inicio). **Copy: nunca "tiempo real" ni "instantáneo"** — usar "alerta inmediata
-    al detectar" o "notificación prioritaria".
+    crawler que detectó el match (frescura máx = cadencia del crawler: **incremental
+    cada 1h** con early-stop + completo diario, ya implementado en F5). **Copy: nunca
+    "tiempo real" ni "instantáneo"** — usar "alerta inmediata al detectar" o
+    "notificación prioritaria".
   - `daily` → se acumulan los hits del día y se manda 1 mensaje a las 8am.
   - `weekly` → 1 resumen el lunes 8am.
 
@@ -336,13 +337,13 @@ Más: agrupación de mensaje si una corrida supera ~50 hits (común a ambos tier
    suscripción. `frequency` = cadencia de entrega (digest).
 4. **[RESUELTO]** Duración con `expires_at` (§2.2) y **tier modelado desde ahora**
    (§2.3): Free = {1 día, 1 semana} · Premium = {+1 mes, +indefinida}.
-5. **[RESUELTO]** Cadencia del **crawler global** de ACF: **4×/día al inicio**
-   (mismos crons que `02-arquitectura.md` Flujo 3). El premium `hourly` se define
-   como **"alerta inmediata al detectar"** (se entrega tras la corrida que detectó
-   el match). **Regla de copy: nunca "tiempo real" ni "instantáneo"** en bot,
-   landing ni material — usar "alerta inmediata al detectar" o "notificación
-   prioritaria". Si el premium lo justifica, subir la cadencia a horaria es solo
-   mover un dial.
+5. **[RESUELTO + IMPLEMENTADO]** Cadencia del **crawler global** de ACF: **incremental
+   cada 1h** (early-stop por orden DESC) + **completo 1×/día** — implementado en F5
+   (`CrawlerScheduler`, `src/workers/crawler.scheduler.ts`), supera el "4×/día" original.
+   El premium `hourly` se define como **"alerta inmediata al detectar"** (se entrega
+   tras la corrida que detectó el match). **Regla de copy: nunca "tiempo real" ni
+   "instantáneo"** en bot, landing ni material — usar "alerta inmediata al detectar"
+   o "notificación prioritaria".
 
 ## 10. Pendiente de implementación
 

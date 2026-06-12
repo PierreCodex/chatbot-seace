@@ -493,9 +493,16 @@ psql $DATABASE_URL -c "select kind, status, sent_at from notifications order by 
 **Tareas concretas** (backend; los Flows del bot los hace el **agente UX**, ver `10`):
 - [x] Migración schema alertas: `subscriptions.expires_at`, `SubStatus.expired`,
       `wa_users.plan`, `plan_expires_at` (`20260610021500_add_subscription_expiry_and_user_plan`).
-- [ ] `CrawlerScheduler` (`modules/crawler/`): `@Cron('0 6,12,18,2 * * *', tz America/Lima)`
-      → **scope fijo ACF**: 4 búsquedas (una por objeto), **NO** `ScopeBuilder`. Encola con
-      `Promise.allSettled` + delay escalonado.
+- [x] `CrawlerScheduler` (`src/workers/crawler.scheduler.ts`, **in-process en el worker**
+      vía `@nestjs/schedule`, no BullMQ): **incremental cada 1h** (`@Cron('0 0 * * * *')`)
+      + **completo 1×/día 03:00** (`@Cron('0 0 3 * * *')`). Gateado por `CRAWLER_ENABLED`,
+      guard `running` anti-solape. **Early-stop por orden DESC**:
+      `AcfHttpScraper.crawlAcf({incremental, onPage})` pagina desde la 1 y corta el objeto
+      cuando una página llega 100% sin cambios (`inserted+updated===0`) — supera el "4×/día
+      scope-fijo" original (más fresco, menos requests). Verificado en vivo (`+1 nuevo,
+      =60 sin cambio, 22s`). Hallazgo: el filtro de fecha de SEACE en ACF es inservible
+      (lo ignora server-side); el completo diario es la red para ediciones/borrados.
+      _Falta_: que el crawler dispare `HitDetectionService` tras el upsert (pieza siguiente).
 - [ ] `HitDetectionService` (**fan-out**): tras el upsert, matchea las filas nuevas contra
       `subscriptions` activas y **no vencidas** (objeto + `entity_ruc` si A1) e inserta
       `subscription_hits` (`notified_at=null`). Dedup por `content_hash`.
@@ -503,10 +510,13 @@ psql $DATABASE_URL -c "select kind, status, sent_at from notifications order by 
 - [ ] `NotificationsService` (**digest**): entrega los hits pendientes según `frequency`
       (`hourly`=al detectar; `daily`=8am; `weekly`=lunes 8am). Agrupa por `user_id`;
       >50 hits → mensaje resumen. Marca `notified_at` + fila en `notifications`.
-- [x] **Render PDF ficha-por-anuncio** (`modules/files`): `AcfPdfRenderer` (pdfkit,
-      `StoredProcess[] → Buffer`) + `FilesService` (cache efímero 30min, sin Storage) +
-      `FilesController` (`GET /files/:token.pdf`). URL = `${PUBLIC_BASE_URL}/files/:token.pdf`;
-      sin esa env, degrada a tarjetas. Cableado en flow inline + `SearchResultsListener`. ✅
+- [x] **Render PDF** (`modules/files` + `adapters/files`): `AcfPdfRenderer` (anuncios ACF,
+      agrupado por entidad) **y** `EntitiesPdfRenderer` (listado de entidades cuando hay
+      >10), ambos pdfkit `… → Buffer`. `FilesService` (`hostAcfPdf` / `hostEntitiesPdf` /
+      `getPdf`, cache efímero Redis 30min, sin Storage) + `FilesController`
+      (`GET /files/:token.pdf`). URL = `${PUBLIC_BASE_URL}/files/:token.pdf`; sin esa env,
+      degrada a tarjetas/lista. Cableado en flow inline + `SearchResultsListener` (tab-aware)
+      + resolvedor de entidad. Specs: renderers ACF/entidades + service + controller. ✅
 - [ ] **Policy de tier** (`modules/subscriptions/`): qué frecuencias/duraciones se ofrecen
       según `wa_users.plan` (free vs premium, `09` §2.3). El gating visual lo aplica el bot.
 - [ ] Endpoint dev `POST /dev/crawl-now` que dispara el crawler ACF manualmente.

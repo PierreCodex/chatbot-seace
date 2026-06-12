@@ -5,7 +5,7 @@
 > intención de diseño; **este doc describe lo que el código realmente hace hoy**.
 > Validado localmente con `pnpm chat:sim` (ver §7).
 
-Última actualización: 2026-06-11.
+Última actualización: 2026-06-12.
 
 ---
 
@@ -76,7 +76,7 @@ soft-nudge ──[Filtrar entidad]──▶ awaiting-entity
 
 Con el crawler ACF poblando la BD (~175 anuncios, frescos), las búsquedas objeto-only y por entidad resuelven **inline**. El path `queued` es raro (BD vieja >6h).
 
-**El scrape ACF es por fetch PURO** (`AcfHttpScraper`, sin Playwright, como entidades): `GET buscador` → cookies + ViewState + valores de objeto → `POST buscar`/`paginar`. Crawl de los 4 objetos ≈ **10s** (validado: bien 37, servicio 83, obra 40, consultoría 15). `SeaceAdapter.search` enruta ACF aquí (fallback a navegador si falla). Beneficia sobre todo al **crawler F5** (4×/día) y quita Chromium del camino de ACF.
+**El scrape ACF es por fetch PURO** (`AcfHttpScraper`, sin Playwright, como entidades): `GET buscador` → cookies + ViewState + valores de objeto → `POST buscar`/`paginar`. Crawl de los 4 objetos ≈ **10s** (validado: bien 37, servicio 83, obra 40, consultoría 15). `SeaceAdapter.search` enruta ACF aquí (fallback a navegador si falla). Beneficia sobre todo al **crawler F5** (incremental cada 1h con early-stop + completo diario) y quita Chromium del camino de ACF.
 
 **Filtro por entidad en ACF (cliente).** SEACE **no** permite acotar los anuncios ACF por entidad desde el form (solo por objeto): el form ACF expone campos de entidad pero requieren el sub-modal "Buscar Entidad". Por eso el filtro por entidad se aplica **en cliente**:
 - **DB-first** (`processes.repo.findByFilters`): `entityNombre` con `equals(insensitive)`. Como anuncio y entidad provienen de SEACE, el nombre coincide (verificado contra datos reales).
@@ -172,7 +172,11 @@ Aplica en el filtro ACF (`awaiting-entity`) y en el resolver standalone (`entity
 
 ## 10. Pendiente (no implementado)
 
-- **Mis alertas / suscripciones (UX-4)** + motor F5 (crawler 4×/día, detección de hits, expiración, notificación). Bloqueado parcialmente por verificación de portafolio Meta (Flows/plantillas).
+- **Mis alertas / suscripciones (UX-4)** + motor F5. El **crawler ya está hecho**
+  (`CrawlerScheduler`: incremental 1h + completo diario, gateado por `CRAWLER_ENABLED`,
+  verificado en vivo); **falta** detección de hits (fan-out a suscripciones), expiración,
+  notificación y los Flows del bot. Bloqueado parcialmente por verificación de portafolio
+  Meta (Flows/plantillas) — por eso el envío proactivo se conecta al final.
 - Entrega proactiva de alertas (template vs "al volver" vs Telegram) — se decide al final.
 - `unaccent` para búsquedas con tildes/ñ.
 - Selección por texto (RUC/nombre) también en el paso de lista ≤10 (hoy solo tap; el texto exacto sí funciona en el path >10).
