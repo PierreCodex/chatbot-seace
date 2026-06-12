@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { SearchJobResult } from '../../jobs/search.job';
+import { FILES_PORT, type FilesPort } from '../../ports/files.port';
 import {
   MESSAGING_PORT,
   type MessagingPort,
@@ -10,6 +11,7 @@ import {
   type ProcessesRepoPort,
 } from '../../ports/persistence/processes.repo.port';
 import { QUEUE_PORT, type QueuePort } from '../../ports/queue.port';
+import { AcfResultsPresenter } from './presenters/acf-results.presenter';
 import { SearchResultsPresenter } from './presenters/search-results.presenter';
 import { SearchFacade } from './search.facade';
 
@@ -27,8 +29,10 @@ export class SearchResultsListener implements OnModuleInit {
     @Inject(QUEUE_PORT) private readonly queue: QueuePort,
     @Inject(PROCESSES_REPO) private readonly processes: ProcessesRepoPort,
     @Inject(MESSAGING_PORT) private readonly messaging: MessagingPort,
+    @Inject(FILES_PORT) private readonly files: FilesPort,
     private readonly facade: SearchFacade,
     private readonly presenter: SearchResultsPresenter,
+    private readonly acfPresenter: AcfResultsPresenter,
   ) {}
 
   onModuleInit(): void {
@@ -57,12 +61,27 @@ export class SearchResultsListener implements OnModuleInit {
       return;
     }
 
-    const messages = this.presenter.build({
-      phoneNumber: ctx.phoneNumber,
-      phoneNumberId: ctx.phoneNumberId,
-      totalFound: job.returnValue.totalReported ?? processes.length,
-      processes,
-    });
+    const totalFound = job.returnValue.totalReported ?? processes.length;
+    let messages: OutboundMessage[];
+    if (ctx.tab === 'anuncios_futuros') {
+      // ACF: tarjetas ACF + PDF con todos (>5) si se puede hospedar.
+      const pdfUrl =
+        totalFound > 5 ? ((await this.files.hostAcfPdf(processes)) ?? undefined) : undefined;
+      messages = this.acfPresenter.build({
+        phoneNumber: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        totalFound,
+        processes,
+        pdfUrl,
+      });
+    } else {
+      messages = this.presenter.build({
+        phoneNumber: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        totalFound,
+        processes,
+      });
+    }
     await this.sendAll(messages);
     await this.facade.clearJobContext(jobId);
     this.logger.log(`entregado job=${jobId} → ${ctx.phoneNumber} (${processes.length} procesos)`);

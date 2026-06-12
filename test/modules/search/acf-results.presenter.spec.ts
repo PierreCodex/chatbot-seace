@@ -1,17 +1,22 @@
-import type { Process as StoredProcess } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
-import { AcfResultsPresenter } from '../../../src/modules/bot/presenters/acf-results.presenter';
+import { AcfResultsPresenter } from '../../../src/modules/search/presenters/acf-results.presenter';
+import type { StoredProcess } from '../../../src/ports/persistence/processes.repo.port';
 
 function makeAcf(o: Partial<StoredProcess> = {}): StoredProcess {
+  const { acf, ...rest } = o as Record<string, unknown> & { acf?: Record<string, unknown> };
   return {
     entityNombre: 'MUNICIPALIDAD DISTRITAL DE PUQUINA',
     fechaPublicacion: new Date('2026-06-08T20:32:00Z'),
     objeto: 'obra',
     descripcion: 'Mejoramiento de pistas y veredas',
-    tipoSeleccion: 'Licitación Pública',
-    plazoDias: 300,
-    fechaAproxConv: new Date('2026-07-20T05:00:00Z'),
-    ...o,
+    procedimiento: null,
+    acf: {
+      tipoSeleccion: 'Licitación Pública',
+      plazoDias: 300,
+      fechaAproxConv: new Date('2026-07-20T05:00:00Z'),
+      ...acf,
+    },
+    ...rest,
   } as unknown as StoredProcess;
 }
 

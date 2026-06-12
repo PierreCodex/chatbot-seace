@@ -317,6 +317,10 @@ Si todo lo anterior se respeta, el bot replica los selectores de SEACE en 3-5 to
 > (menú dinámico de filtros con resumen acumulativo) + "empujón suave"**. Es la
 > evolución corregida de `docs/flujo.md`. Las secciones §1-§9 son referencia
 > general; ésta es la que se implementa primero. Aplica solo a `tab=acf`.
+>
+> ⚙️ **Comportamiento real ya implementado** (con detalles que evolucionaron más allá
+> de esta spec — PDF agrupado, filtro por nombre, presentación 1/2-10/>10, guards):
+> ver **[`12-flujos-bot-implementados.md`](./12-flujos-bot-implementados.md)** (as-built).
 
 ### 10.1 Principio
 

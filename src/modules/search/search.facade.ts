@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { Process as StoredProcess } from '@prisma/client';
 import { JOB_NAMES } from '../../jobs/job-types';
 import type { SearchJobData } from '../../jobs/search.job';
 import { CACHE_PORT, type CachePort } from '../../ports/cache.port';
 import {
   PROCESSES_REPO,
   type ProcessesRepoPort,
+  type StoredProcess,
 } from '../../ports/persistence/processes.repo.port';
 import { SEARCHES_REPO, type SearchesRepoPort } from '../../ports/persistence/searches.repo.port';
 import type { SearchFilters, TabName } from '../../ports/persistence/types';
@@ -81,6 +81,24 @@ export class SearchFacade {
       this.logger.debug(`DB-first hit (${fresh.length}) tab=${req.tab}`);
       await this.recordSearch(req, fresh, 'cached_db', Date.now() - startedAt);
       return { source: 'cached_db', processes: fresh, totalFound: fresh.length };
+    }
+
+    // 1b) ACF + filtro de entidad con dataset fresco: SEACE no filtra ACF por
+    // entidad server-side (lo hacemos en cliente) y el crawler mantiene el set
+    // ACF **completo**. Si hay anuncios frescos del objeto pero ninguno de la
+    // entidad pedida, 0 es la respuesta real → la damos al instante en vez de
+    // encolar un scrape (~10s) que tras filtrar daría 0 igual.
+    if (req.tab === 'anuncios_futuros' && req.filters.entityNombre) {
+      const freshObjeto = await this.processes.findByFilters(
+        req.tab,
+        { objeto: req.filters.objeto },
+        { maxAge: DB_FRESHNESS, limit: 1 },
+      );
+      if (freshObjeto.length > 0) {
+        this.logger.debug(`ACF fresco sin match de entidad "${req.filters.entityNombre}" → 0`);
+        await this.recordSearch(req, [], 'cached_db', Date.now() - startedAt);
+        return { source: 'cached_db', processes: [], totalFound: 0 };
+      }
     }
 
     // 2) Cache Redis (resultado de scrape reciente).

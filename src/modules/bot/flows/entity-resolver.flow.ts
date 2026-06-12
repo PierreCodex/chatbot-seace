@@ -1,13 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { EntityLookupMatch } from '../../../ports/entity-lookup.port';
+import { FILES_PORT, type FilesPort } from '../../../ports/files.port';
 import type { OutboundMessage } from '../../../ports/messaging.port';
 import { EntitySearchService } from '../../search/entity-search.service';
 import { EntityResultsPresenter } from '../presenters/entity.presenter';
 import type { Flow, FlowContext, FlowResult } from '../types';
-import { SearchAnunciosFlow } from './search-anuncios.flow';
+import { SearchAnunciosFlow, entitiesOverflowMessages } from './search-anuncios.flow';
 
 const FLOW_ID = 'entity-resolver';
 const MAX_ENTITY_CHOICES = 10;
+
+/** Ids de control "ajenos" a este flujo (botones viejos). Excluye `entity:` y
+ * `entact:` porque son propios y los maneja cada paso explícitamente. */
+const STALE_CONTROL = /^(acf|nudge|objeto|search|anuncios|subscriptions):/i;
 
 type Step = 'awaiting-query' | 'disambiguation' | 'viewing';
 
@@ -34,6 +39,7 @@ export class EntityResolverFlow implements Flow {
     private readonly entitySearch: EntitySearchService,
     private readonly presenter: EntityResultsPresenter,
     private readonly anunciosFlow: SearchAnunciosFlow,
+    @Inject(FILES_PORT) private readonly files: FilesPort,
   ) {}
 
   async handle(ctx: FlowContext): Promise<FlowResult> {
@@ -48,6 +54,21 @@ export class EntityResolverFlow implements Flow {
       default:
         return this.start(ctx);
     }
+  }
+
+  /** Botones de cierre tras un dead-end (0 resultados / lista en PDF): seguir
+   * buscando o finalizar. `menu:main` lo intercepta ConversationService → menú. */
+  private followup(ctx: FlowContext): OutboundMessage {
+    return {
+      kind: 'buttons',
+      to: ctx.phoneNumber,
+      phoneNumberId: ctx.phoneNumberId,
+      body: '¿Buscar otra entidad o terminar?',
+      buttons: [
+        { id: 'entact:otra', title: '🔎 Otra entidad' },
+        { id: 'menu:main', title: '🏁 Finalizar' },
+      ],
+    };
   }
 
   /** Entrada desde MainMenuFlow: pide el texto de la entidad. */
@@ -67,11 +88,26 @@ export class EntityResolverFlow implements Flow {
 
   private async onQuery(ctx: FlowContext): Promise<FlowResult> {
     const q = ctx.input.trim();
+    // "🔎 Otra entidad" (desde los botones de cierre) → re-pedir el texto.
+    if (q === 'entact:otra') return this.start(ctx);
+    // Guard: tap a un botón viejo mientras esperábamos texto → re-pedir.
+    if (STALE_CONTROL.test(q) || /^(entity|entact):/i.test(q)) {
+      return {
+        messages: [textMsg(ctx, 'Escribe el *nombre, sigla o RUC* de la entidad para buscar.')],
+      };
+    }
     if (q.length < 2) {
       return {
         messages: [textMsg(ctx, 'Necesito al menos 2 letras. Escribe el nombre, sigla o RUC.')],
       };
     }
+    return this.runQuery(ctx, q);
+  }
+
+  /** Búsqueda + presentación por cantidad. Reutilizada desde cualquier paso para
+   * que "escribir otra entidad" funcione siempre (flujo perdonador). */
+  private async runQuery(ctx: FlowContext, q: string): Promise<FlowResult> {
+    await ctx.notify(textMsg(ctx, '🔎 Consultando en SEACE… dame un segundito ⏳'));
     const matches = await this.entitySearch.search(q);
     if (matches.length === 0) {
       return {
@@ -80,7 +116,10 @@ export class EntityResolverFlow implements Flow {
             ctx,
             'No encontré entidades con eso. Prueba con otras palabras (ciudad, región) o pega el RUC.',
           ),
+          this.followup(ctx),
         ],
+        nextStep: 'awaiting-query',
+        dataPatch: { entityCandidates: [], entity: undefined },
       };
     }
     if (matches.length === 1) {
@@ -91,6 +130,30 @@ export class EntityResolverFlow implements Flow {
         dataPatch: { entity: only, entityCandidates: [] },
       };
     }
+    // >10: PDF con todas + botones de cierre (degrada a top-10 sin PDF).
+    if (matches.length > MAX_ENTITY_CHOICES) {
+      const pdfUrl = await this.files.hostEntitiesPdf(matches);
+      if (pdfUrl) {
+        return {
+          messages: [...entitiesOverflowMessages(ctx, matches.length, pdfUrl), this.followup(ctx)],
+          nextStep: 'awaiting-query',
+          dataPatch: { entityCandidates: [], entity: undefined },
+        };
+      }
+      const top = matches.slice(0, MAX_ENTITY_CHOICES);
+      return {
+        messages: [
+          textMsg(
+            ctx,
+            `Encontré ${matches.length}. Te muestro 10; afina con ciudad/región o escríbeme el RUC exacto.`,
+          ),
+          this.presenter.disambiguation(ctx, matches.length, top),
+        ],
+        nextStep: 'disambiguation',
+        dataPatch: { entityCandidates: top },
+      };
+    }
+
     const top = matches.slice(0, MAX_ENTITY_CHOICES);
     return {
       messages: [this.presenter.disambiguation(ctx, matches.length, top)],
@@ -99,33 +162,47 @@ export class EntityResolverFlow implements Flow {
     };
   }
 
-  private onPicked(ctx: FlowContext, data: FlowData): FlowResult {
-    const ruc = parseId(ctx.input, 'entity');
-    const found = data.entityCandidates?.find((c) => c.ruc === ruc);
-    if (!ruc || !found) {
+  private async onPicked(ctx: FlowContext, data: FlowData): Promise<FlowResult> {
+    const q = ctx.input.trim();
+    const ruc = parseId(q, 'entity');
+    if (ruc) {
+      const found = data.entityCandidates?.find((c) => c.ruc === ruc);
+      if (found) {
+        return {
+          messages: [this.presenter.card(ctx, found)],
+          nextStep: 'viewing',
+          dataPatch: { entity: found },
+        };
+      }
       return {
         messages: [textMsg(ctx, 'No reconocí esa opción. Elige una de la lista anterior.')],
       };
     }
-    return {
-      messages: [this.presenter.card(ctx, found)],
-      nextStep: 'viewing',
-      dataPatch: { entity: found },
-    };
+    if (q === 'entact:otra') return this.start(ctx);
+    if (STALE_CONTROL.test(q) || /^entact:/i.test(q)) {
+      return { messages: [textMsg(ctx, 'Elige una de la lista o escríbeme otro nombre/RUC.')] };
+    }
+    // Texto libre en la desambiguación → nueva búsqueda (flujo perdonador).
+    if (q.length < 2) {
+      return { messages: [textMsg(ctx, 'Elige una de la lista o escríbeme otro nombre/RUC.')] };
+    }
+    return this.runQuery(ctx, q);
   }
 
-  private onAction(ctx: FlowContext, data: FlowData): FlowResult {
-    const choice = parseId(ctx.input, 'entact');
+  private async onAction(ctx: FlowContext, data: FlowData): Promise<FlowResult> {
+    const q = ctx.input.trim();
+    const choice = parseId(q, 'entact');
+    if (choice === 'otra') return this.start(ctx);
     const entity = data.entity;
-    if (!entity) {
-      this.logger.warn('onAction sin entidad, reiniciando');
-      return this.start(ctx);
-    }
     if (choice === 'anuncios') {
+      if (!entity) {
+        this.logger.warn('onAction sin entidad, reiniciando');
+        return this.start(ctx);
+      }
       // Handoff al flujo ACF con la entidad ya fijada; falta elegir objeto.
       return this.anunciosFlow.startWithEntity(ctx, { ruc: entity.ruc, nombre: entity.nombre });
     }
-    if (choice === 'alerta') {
+    if (choice === 'alerta' && entity) {
       return {
         messages: [
           textMsg(
@@ -136,7 +213,14 @@ export class EntityResolverFlow implements Flow {
         ],
       };
     }
-    return { messages: [this.presenter.card(ctx, entity)] };
+    // Botón de control ajeno → re-mostrar la ficha; texto libre → nueva búsqueda.
+    if (STALE_CONTROL.test(q) || /^(entity|entact):/i.test(q)) {
+      return entity ? { messages: [this.presenter.card(ctx, entity)] } : this.start(ctx);
+    }
+    if (q.length < 2) {
+      return entity ? { messages: [this.presenter.card(ctx, entity)] } : this.start(ctx);
+    }
+    return this.runQuery(ctx, q);
   }
 }
 

@@ -129,6 +129,28 @@ export class HtmlRowsParser {
     return { rows, ...pageInfo };
   }
 
+  /**
+   * Parsea la respuesta de **paginación AJAX** del datatable ACF. PrimeFaces
+   * puede devolver el datatable completo (con su `<tbody.ui-datatable-data>`) o
+   * solo los `<tr>` pelados; este método maneja ambos casos. Mismo layout de
+   * celdas que `parseAnunciosFuturos`. Lo usa el replay HTTP (`AcfHttpScraper`).
+   */
+  parseAnunciosFuturosFragment(html: string): ProcessRow[] {
+    let root = parseHtml(html);
+    let tbody = root.querySelector('tbody.ui-datatable-data');
+    if (!tbody) {
+      root = parseHtml(`<table><tbody>${html}</tbody></table>`);
+      tbody = root.querySelector('tbody');
+    }
+    const rows: ProcessRow[] = [];
+    for (const tr of tbody?.querySelectorAll('tr') ?? []) {
+      if (tr.classList.contains('ui-datatable-empty-message')) continue;
+      const row = this.parseAcfRow(tr);
+      if (row) rows.push(row);
+    }
+    return rows;
+  }
+
   private parseAcfRow(tr: HTMLElement): ProcessRow | null {
     const cells = tr.querySelectorAll('td');
     if (cells.length < 10) return null;

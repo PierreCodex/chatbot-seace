@@ -18,6 +18,47 @@ const INPUT_RUC = `${PROCEDIMIENTOS_FORM}:txtRucEntidad`;
 const BTN_BUSCAR_MODAL = `${PROCEDIMIENTOS_FORM}:btnBuscarEntidad`;
 const DATATABLE = `${PROCEDIMIENTOS_FORM}:dataTable`;
 
+// Semillas de primer nivel: letras + dígitos (algunos nombres empiezan con número).
+const DEFAULT_CRAWL_TERMS = 'abcdefghijklmnopqrstuvwxyz0123456789'.split('');
+// Sufijos de expansión: SOLO letras. Los nombres de entidad casi nunca tienen
+// un dígito pegado a una letra (ej. "a0".."a9" devuelven 0), así que añadir
+// dígitos a la expansión sólo gasta búsquedas vacías a ~20-30s cada una.
+const EXPANSION_CHARS = 'abcdefghijklmnopqrstuvwxyz'.split('');
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+export interface EntityCrawlProgress {
+  /** Término buscado en esta iteración. */
+  term: string;
+  /** Páginas recorridas para el término. */
+  pages: number;
+  /** Filas vistas (incluye duplicados ya conocidos). */
+  rowsSeen: number;
+  /** Entidades únicas nuevas aportadas por el término. */
+  newUnique: number;
+  /** Total de entidades únicas acumuladas en la corrida. */
+  totalUnique: number;
+  /** El término saturó el cap del modal (~300) y se expandió con sufijos. */
+  truncated: boolean;
+}
+
+export interface EntityCrawlOptions {
+  /** Términos semilla. Default: a-z + 0-9. */
+  terms?: string[];
+  /** Máx. páginas por término (el modal capa ~300 resultados ≈ 30 págs). Default 30. */
+  maxPagesPerTerm?: number;
+  /** Pausa entre términos para preservar la sesión y no estresar SEACE. Default 5000ms. */
+  pauseMsBetweenTerms?: number;
+  /** Si un término satura el cap, se expande con sufijos hasta esta longitud. Default 2. */
+  maxTermLength?: number;
+  /** Tamaño de lote para el callback de persistencia. Default 100. */
+  chunkSize?: number;
+  /** Persiste un lote de entidades únicas nuevas. */
+  onChunk?: (rows: EntityLookupMatch[]) => Promise<void>;
+  /** Notifica el avance al cerrar cada término. */
+  onProgress?: (p: EntityCrawlProgress) => void;
+}
+
 /**
  * Driver del modal "Buscar Entidad" del tab Procedimientos.
  *
@@ -69,6 +110,94 @@ export class EntityModalScraper implements EntityLookupPort {
         `entity-modal "${nombre}": ${collected.length} matches en ${page} páginas (${Date.now() - startedAt}ms)`,
       );
       return collected;
+    } finally {
+      await jc.close();
+    }
+  }
+
+  /**
+   * Pre-crawl del catálogo completo de entidades (F4.5). Reusa **un solo**
+   * `BrowserContext` durante toda la corrida: así la sesión SEACE (y el score de
+   * reCAPTCHA) se preserva y no se re-resuelve el captcha en cada término.
+   *
+   * Itera términos (a-z + 0-9 por default), pagina cada uno hasta el cap del
+   * modal (~300 ≈ 30 págs), deduplica por RUC en memoria y entrega lotes vía
+   * `onChunk` para persistir idempotentemente. Cuando un término satura el cap,
+   * lo **expande con sufijos** (`a`→`aa`..`a9`) hasta `maxTermLength` para
+   * alcanzar la cola que el cap deja fuera. Re-correr es seguro (upsert idempotente).
+   */
+  async crawlAllEntities(opts: EntityCrawlOptions = {}): Promise<{ totalUnique: number }> {
+    const maxPages = opts.maxPagesPerTerm ?? 30;
+    const pauseMs = opts.pauseMsBetweenTerms ?? 1_500;
+    const maxTermLength = opts.maxTermLength ?? 2;
+    const chunkSize = opts.chunkSize ?? 100;
+    const queue = [...(opts.terms ?? DEFAULT_CRAWL_TERMS)];
+
+    const seen = new Set<string>();
+    let buffer: EntityLookupMatch[] = [];
+    const startedAt = Date.now();
+
+    const jc = await this.contexts.create();
+    try {
+      await this.session.openBuscador(jc.page);
+      await this.switchToProcedimientos(jc.page);
+      await this.openModal(jc.page);
+
+      while (queue.length > 0) {
+        const term = queue.shift() as string;
+        let pages = 0;
+        let rowsSeen = 0;
+        let newUnique = 0;
+        let lastTotalPages: number | null = null;
+
+        try {
+          await this.fillInputAndSearch(jc.page, INPUT_NOMBRE, term);
+          for (let page = 1; page <= maxPages; page++) {
+            const parsed = await this.parseCurrentPage(jc.page);
+            pages = page;
+            if (parsed.totalPages != null) lastTotalPages = parsed.totalPages;
+            for (const row of parsed.rows) {
+              rowsSeen++;
+              if (seen.has(row.ruc)) continue;
+              seen.add(row.ruc);
+              newUnique++;
+              buffer.push(row);
+            }
+            if (parsed.rows.length === 0) break;
+            if (lastTotalPages != null && page >= lastTotalPages) break;
+            if (page >= maxPages) break;
+            const advanced = await this.goNextPage(jc.page);
+            if (!advanced) break;
+            await this.session.waitForPrimefaces(jc.page, 10_000);
+          }
+        } catch (err) {
+          // No tiramos toda la corrida por un término: logueamos y reabrimos el
+          // modal (pudo cerrarse) para continuar con los siguientes.
+          this.logger.warn(
+            `crawl término "${term}" falló: ${(err as Error).message}; reabriendo modal`,
+          );
+          await this.openModal(jc.page).catch(() => undefined);
+        }
+
+        const truncated = lastTotalPages != null && lastTotalPages >= maxPages;
+        if (truncated && term.length < maxTermLength) {
+          for (const c of EXPANSION_CHARS) queue.push(`${term}${c}`);
+        }
+
+        if (opts.onChunk && buffer.length >= chunkSize) {
+          const batch = buffer;
+          buffer = [];
+          await opts.onChunk(batch);
+        }
+
+        opts.onProgress?.({ term, pages, rowsSeen, newUnique, totalUnique: seen.size, truncated });
+
+        if (queue.length > 0 && pauseMs > 0) await delay(pauseMs);
+      }
+
+      if (opts.onChunk && buffer.length > 0) await opts.onChunk(buffer);
+      this.logger.log(`crawl entidades: ${seen.size} únicas en ${Date.now() - startedAt}ms`);
+      return { totalUnique: seen.size };
     } finally {
       await jc.close();
     }

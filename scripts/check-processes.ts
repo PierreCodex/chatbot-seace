@@ -14,20 +14,17 @@ async function main() {
     const last = await prisma.process.findMany({
       orderBy: { scrapedAt: 'desc' },
       take: 10,
-      select: {
-        nomenclatura: true,
-        entityNombre: true,
-        objeto: true,
-        valorReferencial: true,
-        moneda: true,
-        nidProceso: true,
-        scrapedAt: true,
-      },
+      include: { acf: true, procedimiento: true },
     });
     console.log('Últimos 10 (scraped_at desc):');
     for (const p of last) {
+      // CTI: el id de negocio vive en el detalle (nomenclatura en procedimiento).
+      const id = p.procedimiento?.nomenclatura ?? `acf:${p.dedupeKey.slice(0, 10)}`;
+      const monto = p.procedimiento
+        ? `${(p.procedimiento.moneda ?? '?').padEnd(4)} ${String(p.procedimiento.valorReferencial ?? '').padStart(14)}`
+        : `plazo ${String(p.acf?.plazoDias ?? '-').padStart(4)}d`;
       console.log(
-        `  ${p.nomenclatura?.padEnd(35)} | ${p.objeto?.padEnd(8) ?? '-       '} | ${(p.moneda ?? '?').padEnd(8)} ${String(p.valorReferencial ?? '').padStart(15)} | nid=${p.nidProceso} | ${p.entityNombre}`,
+        `  ${id.padEnd(35)} | ${(p.objeto ?? '-').padEnd(8)} | ${monto} | ${p.entityNombre}`,
       );
     }
   } finally {

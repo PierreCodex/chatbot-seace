@@ -17,6 +17,7 @@ function ctx(step: string, input: string, data: Record<string, unknown> = {}): F
     phoneNumber: '+51999',
     phoneNumberId: 'pn1',
     input,
+    notify: async () => {},
     state: {
       userId: 'u1',
       phoneNumber: '+51999',
@@ -124,7 +125,7 @@ describe('SearchAnunciosFlow (ACF, variante A + empujón suave)', () => {
     expect(facade.search).toHaveBeenCalledWith(
       expect.objectContaining({
         tab: 'anuncios_futuros',
-        filters: { objeto: 'obra', entityRuc: '20154265061' },
+        filters: { objeto: 'obra', entityNombre: 'GORE PIURA' },
       }),
     );
     expect(presenter.build).toHaveBeenCalledTimes(1);

@@ -137,7 +137,9 @@ Todas confirmadas con producto:
 | `planPolicy(plan)` (capacidades) | `modules/subscriptions` (o `users`) | ⚠️ por crear |
 | Cuota máx. activas | validación en `SubscriptionsService.create` | ⚠️ por crear |
 | Selección de Flow por plan | flow de suscripción (UX-4) | ⚠️ por crear |
-| Flow `subscribe_acf_free` | `docs/flows/subscribe_acf.flow.json` (recortar a free) | 🟡 hecho, falta recorte |
-| Flow `subscribe_acf_premium` | `docs/flows/subscribe_acf_premium.flow.json` | ⚠️ por crear |
+| Flow `subscribe_acf_free` | `docs/flows/subscribe_acf_free.flow.json` | ✅ creado (falta publicar + flow_id) |
+| Flow `subscribe_acf_premium` | `docs/flows/subscribe_acf_premium.flow.json` | ✅ creado (falta publicar + flow_id) |
+| Kind `flow` + parseo `nfm_reply` | `MessagingPort` + `KapsoAdapter` | ⚠️ por crear (plomería) |
+| Validación `nfm_reply` (rango fecha/no_expiry, tier) | flow UX-4 + `planPolicy` | ⚠️ por crear |
 | Revalidación de `nfm_reply` vs plan | parseWebhook → flow UX-4 | ⚠️ por crear |
 | Job degradar premium vencido | worker | ⚠️ por crear |

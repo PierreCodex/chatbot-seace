@@ -15,6 +15,19 @@ export const envSchema = z.object({
 
   KAPSO_API_KEY: z.string().default(''),
   KAPSO_WEBHOOK_SECRET: z.string().default(''),
+
+  // URL pública del API para servir archivos efímeros (PDF de anuncios ACF) que
+  // Meta descarga por link. Dev = túnel ngrok; prod = dominio de Railway/Contabo.
+  // Si falta, el bot omite el PDF y muestra solo las 5 tarjetas.
+  PUBLIC_BASE_URL: z.string().url().optional(),
+
+  // Motor de alertas F5 — crawler ACF agendado (corre en el worker). Apagado por
+  // defecto para que dev/test/CI no scrapeen SEACE en cada arranque. En prod del
+  // worker: CRAWLER_ENABLED=true.
+  CRAWLER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

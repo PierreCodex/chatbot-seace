@@ -8,7 +8,6 @@ import { EntityResolverFlow } from './flows/entity-resolver.flow';
 import { MainMenuFlow } from './flows/main-menu.flow';
 import { SearchAnunciosFlow } from './flows/search-anuncios.flow';
 import { SearchProcesosFlow } from './flows/search-procesos.flow';
-import { AcfResultsPresenter } from './presenters/acf-results.presenter';
 import { EntityResultsPresenter } from './presenters/entity.presenter';
 import { MenuPresenter } from './presenters/menu.presenter';
 import { WaUsersService } from './wa-users.service';
@@ -21,7 +20,6 @@ import { WebhookController } from './webhook.controller';
     ConversationStore,
     FlowRegistry,
     MenuPresenter,
-    AcfResultsPresenter,
     EntityResultsPresenter,
     MainMenuFlow,
     SearchAnunciosFlow,

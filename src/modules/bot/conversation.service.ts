@@ -35,7 +35,17 @@ export class ConversationService {
     }
 
     // Determine input text
-    const input = inbound.interactiveReplyId ?? inbound.text ?? '';
+    let input = inbound.interactiveReplyId ?? inbound.text ?? '';
+
+    // Comando de escape GLOBAL: desde cualquier flujo/paso, "menú", "inicio",
+    // "salir", "cancelar", "/start"… reinician al menú principal. Da la "salida
+    // siempre disponible" (docs/03 principio 4) y evita que el usuario quede
+    // atrapado a media de un flujo. También el botón `menu:main` (lo emiten varias
+    // fichas/presenters): debe llevar al menú sin importar en qué flujo esté.
+    if (isResetCommand(input) || input === 'menu:main') {
+      state = { ...state, flowId: DEFAULT_FLOW, step: 'awaiting-selection', data: {} };
+      input = 'menu:main';
+    }
 
     // Find current flow
     const flow = this.registry.get(state.flowId) ?? this.registry.get(DEFAULT_FLOW);
@@ -50,6 +60,7 @@ export class ConversationService {
       phoneNumberId: inbound.phoneNumberId,
       state,
       input,
+      notify: (message) => this.send(message),
     };
 
     try {
@@ -108,4 +119,18 @@ export class ConversationService {
       updatedAt: Date.now(),
     };
   }
+}
+
+/** Palabras que reinician al menú desde cualquier flujo (normalizadas: sin
+ * tildes, sin "/" inicial, minúsculas). Cubre los términos intuitivos típicos. */
+const RESET_COMMANDS = new Set(['menu', 'inicio', 'salir', 'cancelar', 'start', 'volver']);
+
+function isResetCommand(input: string): boolean {
+  const norm = input
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/^\//, '')
+    .trim();
+  return RESET_COMMANDS.has(norm);
 }

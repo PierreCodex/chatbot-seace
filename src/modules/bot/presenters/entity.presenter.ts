@@ -19,7 +19,10 @@ export class EntityResultsPresenter {
   /** Ficha de una entidad ya resuelta con sus acciones. */
   card(ctx: EntityPresentContext, entity: EntityLookupMatch): OutboundMessage {
     const lines = [`🏢 *${entity.nombre}*`, `RUC ${entity.ruc}`];
-    if (entity.tipoDoc) lines.push(`_${entity.tipoDoc}_`);
+    if (entity.tipoDoc && entity.tipoDoc.toUpperCase() !== 'RUC') lines.push(`_${entity.tipoDoc}_`);
+    // El crear-alerta aún no existe (UX-4): lo dejamos como teaser de texto, no
+    // como botón, para liberar el 3er botón a la navegación (buscar otra/finalizar).
+    lines.push('', '_Las alertas por entidad llegan pronto 🔔_');
     return {
       kind: 'buttons',
       to: ctx.phoneNumber,
@@ -27,8 +30,8 @@ export class EntityResultsPresenter {
       body: lines.join('\n'),
       buttons: [
         { id: 'entact:anuncios', title: '📅 Ver anuncios' },
-        { id: 'entact:alerta', title: '🔔 Crear alerta' },
-        { id: 'menu:main', title: 'Menú' },
+        { id: 'entact:otra', title: '🔎 Otra entidad' },
+        { id: 'menu:main', title: '🏁 Finalizar' },
       ],
     };
   }
@@ -51,13 +54,43 @@ export class EntityResultsPresenter {
           title: 'Entidades',
           rows: top.map((m) => ({
             id: `entity:${m.ruc}`,
-            title: truncate(m.nombre, 24),
-            description: `RUC ${m.ruc}`,
+            // El título de fila topa en 24 chars (límite de WhatsApp) → abreviamos
+            // el prefijo común para que se vea la parte distintiva; el nombre
+            // completo va en la descripción (hasta 72).
+            title: entityTitle(m.nombre),
+            description: truncate(`${m.nombre} · RUC ${m.ruc}`, 72),
           })),
         },
       ],
     };
   }
+}
+
+/** Prefijos comunes de entidades públicas → abreviatura, para que la parte
+ * distintiva (distrito/región) quepa en los 24 chars del título de WhatsApp. */
+const PREFIX_ABBR: [RegExp, string][] = [
+  [/^GOBIERNO REGIONAL (DE |DEL )?/i, 'GORE '],
+  [/^MUNICIPALIDAD PROVINCIAL (DE |DEL )?/i, 'Muni. Prov. '],
+  [/^MUNICIPALIDAD DISTRITAL (DE |DEL )?/i, 'Muni. Dist. '],
+  [/^MUNICIPALIDAD METROPOLITANA (DE |DEL )?/i, 'Muni. Metrop. '],
+  [/^MUNICIPALIDAD (DEL )?CENTRO POBLADO (MENOR )?(DE |DEL )?/i, 'Muni. C.P. '],
+  [/^UNIVERSIDAD NACIONAL (DE |DEL )?/i, 'Univ. Nac. '],
+  [/^INSTITUTO NACIONAL (DE |DEL )?/i, 'Inst. Nac. '],
+  [/^DIRECCION REGIONAL (DE |DEL )?/i, 'Dir. Reg. '],
+  [/^UNIDAD DE GESTION EDUCATIVA LOCAL (DE |DEL )?/i, 'UGEL '],
+  [/^PROYECTO ESPECIAL /i, 'P.E. '],
+];
+
+/** Título de fila para una entidad: abrevia prefijo común y recorta a 24. */
+export function entityTitle(nombre: string): string {
+  let s = nombre.trim();
+  for (const [re, abbr] of PREFIX_ABBR) {
+    if (re.test(s)) {
+      s = s.replace(re, abbr);
+      break;
+    }
+  }
+  return truncate(s, 24);
 }
 
 function truncate(s: string, n: number): string {

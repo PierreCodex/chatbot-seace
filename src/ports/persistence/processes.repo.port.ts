@@ -1,7 +1,15 @@
-import type { Process as PrismaProcess } from '@prisma/client';
+import type { Process as PrismaProcess, ProcessAcf, ProcessProcedimiento } from '@prisma/client';
 import type { Duration, ProcessRow, SearchFilters, TabName } from './types';
 
-export type StoredProcess = PrismaProcess;
+/**
+ * Proceso con sus detalles 1:1 (CTI). `acf` está presente cuando
+ * `tab='anuncios_futuros'`; `procedimiento` cuando `tab='procedimientos'`.
+ * El otro queda `null`.
+ */
+export type StoredProcess = PrismaProcess & {
+  acf: ProcessAcf | null;
+  procedimiento: ProcessProcedimiento | null;
+};
 
 export interface UpsertResult {
   inserted: number;

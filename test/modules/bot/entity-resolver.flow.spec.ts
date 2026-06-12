@@ -19,6 +19,7 @@ function ctx(step: string, input: string, data: Record<string, unknown> = {}): F
     phoneNumber: '+51999',
     phoneNumberId: 'pn1',
     input,
+    notify: async () => {},
     state: {
       userId: 'u1',
       phoneNumber: '+51999',
@@ -51,11 +52,30 @@ describe('EntityResolverFlow (UX-3 standalone)', () => {
     expect(r.messages[0].kind).toBe('text');
   });
 
-  it('0 coincidencias responde texto', async () => {
+  it('0 coincidencias responde texto + botones de cierre', async () => {
     entitySearch.search.mockResolvedValue([]);
     const r = await flow.handle(ctx('awaiting-query', 'zzz'));
     expect(r.messages[0].kind).toBe('text');
-    expect(r.nextStep).toBeUndefined();
+    const last = r.messages[1];
+    expect(last.kind).toBe('buttons');
+    if (last.kind === 'buttons') {
+      expect(last.buttons.map((b) => b.id)).toEqual(['entact:otra', 'menu:main']);
+    }
+    expect(r.nextStep).toBe('awaiting-query');
+  });
+
+  it('"🔎 Otra entidad" (entact:otra) re-pide el texto sin buscar', async () => {
+    const r = await flow.handle(ctx('viewing', 'entact:otra', { entity: { ruc: '1', nombre: 'X' } }));
+    expect(entitySearch.search).not.toHaveBeenCalled();
+    expect(r.messages[0].kind).toBe('text');
+    expect(r.nextStep).toBe('awaiting-query');
+  });
+
+  it('escribir otra entidad en viewing dispara una nueva búsqueda', async () => {
+    entitySearch.search.mockResolvedValue([{ ruc: '9', nombre: 'MUNI SULLANA', tipoDoc: 'RUC' }]);
+    const r = await flow.handle(ctx('viewing', 'muni sullana', { entity: { ruc: '1', nombre: 'X' } }));
+    expect(entitySearch.search).toHaveBeenCalledWith('muni sullana');
+    expect(r.nextStep).toBe('viewing');
   });
 
   it('1 coincidencia muestra la ficha y deja viewing', async () => {

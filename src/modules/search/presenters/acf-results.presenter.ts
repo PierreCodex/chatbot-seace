@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { Process as StoredProcess } from '@prisma/client';
 import type { OutboundMessage } from '../../../ports/messaging.port';
+import type { StoredProcess } from '../../../ports/persistence/processes.repo.port';
 
 const MAX_CARDS = 5;
 
@@ -84,6 +84,8 @@ function text(ctx: AcfPresentContext, body: string): OutboundMessage {
 }
 
 function formatAcfCard(p: StoredProcess): string {
+  // Campos compartidos en la base; los propios de ACF en p.acf (CTI).
+  const acf = p.acf;
   const lines: string[] = [`*${p.entityNombre}*`];
 
   const pub: string[] = [];
@@ -92,11 +94,11 @@ function formatAcfCard(p: StoredProcess): string {
   if (pub.length) lines.push(pub.join(' · '));
 
   const conv: string[] = [];
-  if (p.fechaAproxConv) conv.push(`🗓️ Conv. aprox. ${formatDate(p.fechaAproxConv)}`);
-  if (p.plazoDias != null) conv.push(`⏱️ ${p.plazoDias} días`);
+  if (acf?.fechaAproxConv) conv.push(`🗓️ Conv. aprox. ${formatDate(acf.fechaAproxConv)}`);
+  if (acf?.plazoDias != null) conv.push(`⏱️ ${acf.plazoDias} días`);
   if (conv.length) lines.push(conv.join(' · '));
 
-  if (p.tipoSeleccion) lines.push(`_${p.tipoSeleccion}_`);
+  if (acf?.tipoSeleccion) lines.push(`_${acf.tipoSeleccion}_`);
   if (p.descripcion) lines.push(`"${truncate(p.descripcion, 180)}"`);
 
   return lines.join('\n');

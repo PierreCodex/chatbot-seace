@@ -32,6 +32,23 @@ export class EntityRowsParser {
     return { rows, ...this.parsePaginatorInfo(root, formId) };
   }
 
+  /**
+   * Parsea un fragmento que son solo `<tr>` pelados (sin la `<table>`/`<tbody>`
+   * contenedora). Es lo que devuelve la **paginación AJAX** del datatable de
+   * PrimeFaces (update del tbody con las filas crudas), a diferencia de la
+   * búsqueda que devuelve el panel completo. Mismo layout de celdas.
+   */
+  parseRowsFragment(html: string): EntityMatch[] {
+    const root = parseHtml(`<table><tbody>${html}</tbody></table>`);
+    const rows: EntityMatch[] = [];
+    for (const tr of root.querySelectorAll('tr')) {
+      if (tr.classList.contains('ui-datatable-empty-message')) continue;
+      const row = this.parseRow(tr);
+      if (row) rows.push(row);
+    }
+    return rows;
+  }
+
   private parseRow(tr: HTMLElement): EntityMatch | null {
     const cells = tr.querySelectorAll('td');
     if (cells.length < 4) return null;

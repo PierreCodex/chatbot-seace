@@ -16,6 +16,12 @@ export interface FlowContext {
   phoneNumberId: string;
   state: ConversationState;
   input: string;
+  /**
+   * Envía un mensaje **intermedio** ya mismo (antes de que el flow termine), para
+   * dar feedback durante operaciones lentas (ej. "🔎 Consultando…" antes de una
+   * búsqueda en vivo). Los `messages` del `FlowResult` se envían igual al final.
+   */
+  notify: (message: OutboundMessage) => Promise<void>;
 }
 
 export interface FlowResult {

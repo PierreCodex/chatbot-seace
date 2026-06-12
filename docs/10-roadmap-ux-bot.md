@@ -21,6 +21,9 @@
   suave). **Esto es lo que implementas.**
 - `03-modulos-bot.md` — módulos y principios UX.
 - `09-alertas-suscripciones.md` — alertas: tipos A1/A2, frecuencia, duración, tier.
+- **`12-flujos-bot-implementados.md`** — *as-built*: lo que el código ya hace hoy
+  (state machine, presentación 1/2-10/>10, PDFs, guards). Léelo para no re-diseñar
+  lo ya construido.
 
 ## 1. Alcance: 4 módulos = Flows + Presenters
 
@@ -58,8 +61,8 @@ Tipos compartidos: `ProcessRow`, `SearchFilters`, `TabName` (`ports/persistence/
 - [x] UX-2 · Búsqueda ACF (variante A + empujón suave) ⭐
 - [x] UX-3 · Resolvedor de entidad — inline (en ACF) **y** standalone (`entity-resolver`)
 - [ ] UX-4 · Suscripciones con tier
-- [~] UX-5 · Resultados: tarjetas + PDF — tarjetas ≤5 / resumen >5 **y kind `document`
-      listo**; falta que backend provea la URL del PDF (`modules/files`)
+- [x] UX-5 · Resultados: tarjetas ≤5 / resumen >5 + **PDF con todos** (`modules/files`:
+      render pdfkit + hosting efímero + controller), cableado inline y async
 - [ ] UX-6 · Integración + pulido
 
 > **Hecho** (avance 1): `menu.presenter.ts` migrado a menú ACF; `main-menu.flow.ts`
@@ -117,7 +120,7 @@ Implementa **`09` §6** y **§2.2-2.3**.
       detectar)"** o "notificación prioritaria". **NUNCA "tiempo real" ni "instantáneo"**.
 - [ ] **Entregable**: spec del flow cubriendo free y premium.
 
-### UX-5 · Presentación de resultados: tarjetas + disparo de PDF (2 días) — 🟡 PARCIAL
+### UX-5 · Presentación de resultados: tarjetas + disparo de PDF (2 días) — ✅ HECHO
 Implementa **`06` §10.5 / §10.6**.
 - [x] `acf-results.presenter.ts` — **≤5** → tarjetas ACF (entidad, fecha pub, tipo,
       conv. aprox., plazo, descripción **truncada**). **Sin** ficha/bases/cronograma.
@@ -126,10 +129,13 @@ Implementa **`06` §10.5 / §10.6**.
 - [x] **>5 → documento PDF**: kind `document` añadido a `MessagingPort` + payload en
       `KapsoAdapter` (Meta Cloud API `type: document`, link+filename+caption). El
       presenter adjunta el PDF si recibe `pdfUrl` (>5); si no, degrada a 5 tarjetas + nota.
-- [ ] _Pendiente (backend)_: render del PDF y URL hospedada (`modules/files`) para
-      poblar `pdfUrl`. El contrato y el envío ya están listos en UX.
-- [x] **Entregable**: `acf-results.presenter.spec.ts` (6) — ≤5, >5, PDF >5, sin-PDF ≤5,
-      tarjeta + `kapso-adapter.document.spec.ts` (2). Verde.
+- [x] **Backend del PDF (`modules/files`)**: `AcfPdfRenderer` (pdfkit, `StoredProcess[] →
+      Buffer`) + `FilesService` (cache efímero en Redis 30min + URL `${PUBLIC_BASE_URL}/files/:token.pdf`)
+      + `FilesController` que lo sirve. Cableado en **ambos** caminos: inline
+      (`search-anuncios.flow`) y async (`SearchResultsListener`, ahora tab-aware). Si no hay
+      `PUBLIC_BASE_URL`, `hostAcfPdf` devuelve `null` y degrada a 5 tarjetas.
+- [x] **Entregable**: `acf-results.presenter.spec.ts` (6) + `kapso-adapter.document.spec.ts` (2)
+      + `acf-pdf.renderer.spec.ts` (2) + `files.service.spec.ts` (4). Verde.
 
 ### UX-6 · Integración + pulido (1-2 días)
 - [ ] Conectar con la `AnunciosFuturosStrategy` real cuando el backend la entregue.

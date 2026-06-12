@@ -378,17 +378,30 @@ Bot:   [< 1 segundo] Encontré 5 entidades: [Municipalidad Distrital de Ate, ...
 ```
 
 **Tareas concretas**:
-- [ ] Script `scripts/crawl-entities.ts`:
-  - Reusa `EntityModalScraper` (no escribir scraper duplicado).
-  - Itera el alfabeto a-z + dígitos: para cada letra, busca por `txtNombreEntidad` y pagina hasta agotar (máx 30 páginas por letra = 300 entidades).
-  - Estrategia anti-duplicados: `Set<ruc>` en memoria + upsert idempotente al final.
-  - Estrategia anti-bloqueo: pausa 5s entre letras, reusar el mismo `BrowserContext` para preservar la sesión SEACE y no resolver reCAPTCHA en cada query.
-  - Persiste con `entitiesRepo.upsertManyByRuc()` en chunks de 100.
-- [ ] Script `npm run` registrado en `package.json` → `pnpm crawl:entities`.
-- [ ] Log estructurado: por cada letra, `{ letra, paginas, totalAcumulado }`. Permite reanudar si crashea (idempotente — re-correr es seguro).
-- [ ] **Bajar el threshold de L2 de `≥3 matches` a `≥1`** en `EntitySearchService` una vez la DB esté llena: con el catálogo completo, basta 1 match para confiar en L2 (la chance de tener un único match relevante real es alta).
-- [ ] Cron semanal opcional `@Cron('0 3 * * 1', ...)` en background para capturar entidades recién registradas. Marcar `last_seen_at` para detectar entidades dadas de baja.
-- [ ] Métrica de operación: contar cuántas veces L3 se ejecuta vs L1/L2 (log + opcional Postgres counter). Objetivo: <1% de queries caen en L3 después del crawl.
+- [x] Método `EntityModalScraper.crawlAllEntities(opts)` (reusa el scraper, **no** duplica):
+  - [x] Reusa **un solo** `BrowserContext` toda la corrida (preserva sesión SEACE y score reCAPTCHA — no re-resuelve captcha por query).
+  - [x] Itera a-z + dígitos: por cada término busca en `txtNombreEntidad` y pagina hasta el cap (`maxPagesPerTerm`, default 30 ≈ 300 entidades).
+  - [x] Anti-duplicados: `Set<ruc>` en memoria; persiste por lotes (`chunkSize`, default 100) vía `onChunk` con `upsertManyByRuc()` (idempotente).
+  - [x] **Expansión adaptativa**: cuando un término satura el cap, lo expande con sufijos (`a`→`aa`..`a9`) hasta `maxTermLength` — cubre la cola que el cap de 300 deja fuera (mitiga el riesgo documentado abajo).
+  - [x] Anti-bloqueo: pausa configurable entre términos (`pauseMsBetweenTerms`, default 5s).
+- [x] Script `scripts/crawl-entities.mjs` (patrón `e2e-acf.mjs`: bootstrapea `WorkerModule`, cablea persistencia + logging). Overrides CLI: `--terms`, `--max-pages`, `--max-term-length`, `--pause`, `--dry`.
+- [x] `npm run` registrado → `pnpm crawl:entities` (hace `pnpm build` antes, pues el script importa `dist`).
+- [x] Log estructurado: por término `{ term, pages, rowsSeen, newUnique, totalUnique, truncated }` + ratio único/visto (alimenta el stop-condition). Re-correr es seguro (upsert idempotente).
+- [x] **★ Optimización: scraper HTTP (`EntityHttpScraper`)** — replay del AJAX en vez de
+      manejar el navegador por query. **Bootstrap con Playwright 1 vez** (sesión con buen
+      score + cookies + ViewState + plantillas de body), luego búsqueda y paginación por
+      `fetch` (~1-2s c/u vs ~20-30s en navegador) → el crawl baja de **horas a minutos**.
+      Hallazgo clave: el modal de entidad **no usa reCAPTCHA** (`tokenBusProSel` vacío). Es
+      el camino **por defecto** del script; `--browser` cae al `EntityModalScraper` (lento).
+      Detalle: la paginación devuelve los `<tr>` pelados → `EntityRowsParser.parseRowsFragment`.
+- [x] **Bulk upsert** en `PrismaEntitiesRepo.upsertManyByRuc`: un `INSERT … ON CONFLICT`
+      por lote (no N upserts en paralelo) — el pooler corre con `connection_limit=1` y el
+      paralelo lo agotaba (P2024). `xmax = 0` distingue inserted/updated.
+- [ ] **Correr el crawl en vivo** (`pnpm crawl:entities`, ahora **minutos**) y validar el
+      entregable (`count(entities) ≥ 10000`, búsqueda L2 <100ms). ← _operación, pendiente_.
+- [ ] **Bajar el threshold de L2 de `≥3` a `≥1`** en `EntitySearchService` **una vez la DB esté llena** (no antes: con la tabla vacía, `≥1` confiaría en un único match pobre y saltaría L3 prematuramente).
+- [ ] Cron semanal opcional `@Cron('0 3 * * 1', ...)` para capturar entidades recién registradas. Marcar `ultimo_visto` para detectar bajas.
+- [ ] Métrica de operación: contar L3 vs L1/L2 (log + opcional counter). Objetivo: <1% de queries caen en L3 tras el crawl.
 
 **Lo que NO entra en F4.5**:
 - No optimización del scraper L3 (HTTP replay, etc.) — F7+ si jamás se vuelve necesario.
@@ -490,8 +503,10 @@ psql $DATABASE_URL -c "select kind, status, sent_at from notifications order by 
 - [ ] `NotificationsService` (**digest**): entrega los hits pendientes según `frequency`
       (`hourly`=al detectar; `daily`=8am; `weekly`=lunes 8am). Agrupa por `user_id`;
       >50 hits → mensaje resumen. Marca `notified_at` + fila en `notifications`.
-- [ ] **Render PDF ficha-por-anuncio** (`modules/files`): `ProcessRow[] → Buffer`, al
-      vuelo (sin Storage); lo consume el presenter de resultados (`06` §10.6).
+- [x] **Render PDF ficha-por-anuncio** (`modules/files`): `AcfPdfRenderer` (pdfkit,
+      `StoredProcess[] → Buffer`) + `FilesService` (cache efímero 30min, sin Storage) +
+      `FilesController` (`GET /files/:token.pdf`). URL = `${PUBLIC_BASE_URL}/files/:token.pdf`;
+      sin esa env, degrada a tarjetas. Cableado en flow inline + `SearchResultsListener`. ✅
 - [ ] **Policy de tier** (`modules/subscriptions/`): qué frecuencias/duraciones se ofrecen
       según `wa_users.plan` (free vs premium, `09` §2.3). El gating visual lo aplica el bot.
 - [ ] Endpoint dev `POST /dev/crawl-now` que dispara el crawler ACF manualmente.

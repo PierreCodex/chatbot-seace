@@ -13,7 +13,11 @@ export class MenuPresenter {
       kind: 'list',
       to,
       phoneNumberId,
-      body: '¡Hola! Soy ContrataBot 🇵🇪. ¿Qué deseas hacer?',
+      body:
+        '¡Hola! Soy *ContrataBot* 🇵🇪🤖\n\n' +
+        'Te traigo los *Anuncios de Contratación Futura* y las contrataciones del Estado peruano directo del *SEACE* 🏛️ — sin que tengas que entrar a la web 📲✨\n\n' +
+        '¿Qué deseas hacer? 👇\n\n' +
+        '_Tip: escribe *menú* en cualquier momento para volver aquí._',
       buttonText: 'Ver opciones',
       sections: [
         {

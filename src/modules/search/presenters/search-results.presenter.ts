@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { Process as StoredProcess } from '@prisma/client';
 import type { OutboundMessage } from '../../../ports/messaging.port';
+import type { StoredProcess } from '../../../ports/persistence/processes.repo.port';
 
 const MAX_CARDS = 5;
 
@@ -81,16 +81,18 @@ function buildHeader(ctx: PresentContext, shown: number): string {
 }
 
 function formatCard(p: StoredProcess): string {
+  // Campos propios de Procedimientos en p.procedimiento (CTI).
+  const proc = p.procedimiento;
   const lines: string[] = [];
-  const nom = p.nomenclatura ?? '(sin nomenclatura)';
+  const nom = proc?.nomenclatura ?? '(sin nomenclatura)';
   lines.push(`*${nom}*`);
   lines.push(p.entityNombre);
   if (p.descripcion) lines.push(truncate(p.descripcion, 160));
   const meta: string[] = [];
   if (p.objeto) meta.push(capitalize(p.objeto.replace('_', ' ')));
-  if (p.valorReferencial != null) {
-    const moneda = p.moneda ?? 'S/';
-    meta.push(`${moneda} ${formatMoney(p.valorReferencial.toString())}`);
+  if (proc?.valorReferencial != null) {
+    const moneda = proc.moneda ?? 'S/';
+    meta.push(`${moneda} ${formatMoney(proc.valorReferencial.toString())}`);
   }
   if (p.fechaPublicacion) meta.push(formatDate(p.fechaPublicacion));
   if (meta.length) lines.push(meta.join(' · '));

@@ -16,6 +16,13 @@ export type NotifStatus = PrismaNotifStatus;
 
 export interface SearchFilters {
   entityRuc?: string;
+  /**
+   * Nombre exacto de la entidad. Para ACF: los anuncios guardan `entityNombre`
+   * pero NO el RUC (SEACE no lo expone en la lista), así que el filtro por
+   * entidad se hace por nombre. El nombre viene de la tabla `entities` (resuelto
+   * por el flujo), garantizando coincidencia con el nombre raspado del anuncio.
+   */
+  entityNombre?: string;
   objeto?: ObjetoContratacion;
   tipoSeleccionIds?: number[];
   anioConvocatoria?: number;

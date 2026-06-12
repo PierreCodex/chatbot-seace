@@ -11,20 +11,26 @@ import {
   type StoredEntity,
 } from '../../ports/persistence/entities.repo.port';
 
-const CACHE_PREFIX = 'entity-query:';
+// v2: invalida el cache de la lógica anterior (solo-local, incompleto). El cache
+// nuevo guarda resultados unidos vivo+local.
+const CACHE_PREFIX = 'entity-query:v2:';
 const CACHE_TTL_SECONDS = 24 * 60 * 60; // 24h
-const L2_MIN_MATCHES = 3;
-const RESULT_LIMIT = 10;
-const L3_MAX_PAGES = 3;
+const RESULT_LIMIT = 50; // ≤10 → lista nativa; >10 → PDF (el flujo decide)
 
 /**
- * Resolución de entidades con cascada L1 → L2 → L3.
+ * Resolución de entidades. La fuente **autoritativa** es SEACE en vivo (lookup
+ * por fetch puro, `ENTITY_LOOKUP_PORT`), idéntica a la web y sin Playwright. La
+ * tabla local (`entities`) aporta matching difuso por-palabra y resiliencia:
  *
- *  L1 Redis cache (24h) por query normalizada — sirve repetidos instantáneo.
- *  L2 Trigram local en `entities` — si la DB ya tiene matches suficientes,
- *     evita un scrape (la tabla se va llenando con uso real).
- *  L3 Scrape on-demand del modal de SEACE — cachea L1 y persiste en DB para
- *     que la próxima vez el L2 ya alcance.
+ *  1. Cache Redis (L1, 24h) por query normalizada — repeticiones instantáneas.
+ *  2. **En vivo + local en paralelo, unidos por RUC**:
+ *     - *vivo* trae lo que la tabla local no tenga (catálogo completo de SEACE);
+ *     - *local* (ILIKE por-palabra) cubre queries abreviadas/multi-palabra que
+ *       el "contiene" literal de SEACE no matchea (ej. "muni sullana").
+ *     Los resultados en vivo se persisten → la tabla local se auto-sana.
+ *  3. Si SEACE falla (red/caído), se degrada a solo-local.
+ *
+ * RUC exacto (11 dígitos) resuelve directo: local por clave, y si falta, en vivo.
  */
 @Injectable()
 export class EntitySearchService {
@@ -37,9 +43,15 @@ export class EntitySearchService {
   ) {}
 
   async search(query: string): Promise<EntityLookupMatch[]> {
+    const raw = query.trim();
     const q = normalizeQuery(query);
     if (!q) return [];
 
+    // RUC exacto (11 dígitos): resolución directa por clave.
+    const digits = q.replace(/\D/g, '');
+    if (/^\d{11}$/.test(digits)) return this.byRuc(digits);
+
+    // L1: cache de una búsqueda previa (ya unida vivo+local).
     const cacheKey = `${CACHE_PREFIX}${q}`;
     const cached = await this.cache.get<EntityLookupMatch[]>(cacheKey);
     if (cached && cached.length > 0) {
@@ -47,28 +59,59 @@ export class EntitySearchService {
       return cached.slice(0, RESULT_LIMIT);
     }
 
-    const local = await this.entities.searchByText(q, RESULT_LIMIT);
-    if (local.length >= L2_MIN_MATCHES) {
-      this.logger.debug(`entity-search L2 hit "${q}" (${local.length})`);
-      const matches = local.map(toMatch);
-      await this.cache.set(cacheKey, matches, CACHE_TTL_SECONDS);
-      return matches;
+    // En vivo (autoritativo) + local (difuso) en paralelo. Mando el texto crudo
+    // a SEACE (conserva tildes que su "contiene" necesita) y el normalizado al local.
+    const [liveR, localR] = await Promise.allSettled([
+      this.lookup.searchByNombre(raw),
+      this.entities.searchByText(q, RESULT_LIMIT),
+    ]);
+    const live = liveR.status === 'fulfilled' ? liveR.value : [];
+    if (liveR.status === 'rejected') {
+      this.logger.warn(`entity-search en vivo falló "${raw}": ${liveR.reason?.message}`);
     }
+    const local = localR.status === 'fulfilled' ? localR.value.map(toMatch) : [];
 
-    this.logger.log(`entity-search L3 miss "${q}", scrapeando modal de SEACE`);
-    const scraped = await this.lookup.searchByNombre(q, { maxPages: L3_MAX_PAGES });
-    if (scraped.length === 0) {
-      this.logger.warn(`entity-search L3 "${q}" devolvió 0 entidades`);
-      return [];
+    if (live.length > 0) await this.persist(live);
+
+    const merged = dedupByRuc([...live, ...local]);
+    this.logger.debug(
+      `entity-search "${raw}" · vivo=${live.length} local=${local.length} → ${merged.length}`,
+    );
+    if (merged.length > 0) {
+      await this.cache.set(cacheKey, merged.slice(0, RESULT_LIMIT), CACHE_TTL_SECONDS);
     }
-    await this.entities
-      .upsertManyByRuc(scraped.map((m) => ({ ruc: m.ruc, nombre: m.nombre, tipoDoc: m.tipoDoc })))
-      .catch((err) => this.logger.warn(`entity-search upsert fallback: ${(err as Error).message}`));
-
-    const top = scraped.slice(0, RESULT_LIMIT);
-    await this.cache.set(cacheKey, top, CACHE_TTL_SECONDS);
-    return top;
+    return merged.slice(0, RESULT_LIMIT);
   }
+
+  private async byRuc(digits: string): Promise<EntityLookupMatch[]> {
+    const found = await this.entities.findByRuc(digits);
+    if (found) return [toMatch(found)];
+    if (this.lookup.searchByRuc) {
+      try {
+        const live = await this.lookup.searchByRuc(digits);
+        if (live.length > 0) {
+          await this.persist(live);
+          return live;
+        }
+      } catch (err) {
+        this.logger.warn(`entity-search RUC en vivo falló: ${(err as Error).message}`);
+      }
+    }
+    return [];
+  }
+
+  /** Persiste los matches autoritativos de SEACE → auto-sana la tabla local. */
+  private async persist(matches: EntityLookupMatch[]): Promise<void> {
+    await this.entities
+      .upsertManyByRuc(matches.map((m) => ({ ruc: m.ruc, nombre: m.nombre, tipoDoc: m.tipoDoc })))
+      .catch((err) => this.logger.warn(`entity-search upsert: ${(err as Error).message}`));
+  }
+}
+
+function dedupByRuc(matches: EntityLookupMatch[]): EntityLookupMatch[] {
+  const seen = new Map<string, EntityLookupMatch>();
+  for (const m of matches) if (!seen.has(m.ruc)) seen.set(m.ruc, m);
+  return [...seen.values()];
 }
 
 function normalizeQuery(input: string): string {

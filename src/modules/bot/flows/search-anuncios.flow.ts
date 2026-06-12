@@ -1,10 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { EntityLookupMatch } from '../../../ports/entity-lookup.port';
+import { FILES_PORT, type FilesPort } from '../../../ports/files.port';
 import type { OutboundMessage } from '../../../ports/messaging.port';
 import type { ObjetoContratacion, SearchFilters } from '../../../ports/persistence/types';
 import { EntitySearchService } from '../../search/entity-search.service';
 import { SearchFacade } from '../../search/search.facade';
-import { AcfResultsPresenter } from '../presenters/acf-results.presenter';
+import { AcfResultsPresenter } from '../../search/presenters/acf-results.presenter';
+import { entityTitle } from '../presenters/entity.presenter';
 import type { Flow, FlowContext, FlowResult } from '../types';
 
 const FLOW_ID = 'search-anuncios';
@@ -44,6 +46,7 @@ export class SearchAnunciosFlow implements Flow {
     private readonly entitySearch: EntitySearchService,
     private readonly searchFacade: SearchFacade,
     private readonly resultsPresenter: AcfResultsPresenter,
+    @Inject(FILES_PORT) private readonly files: FilesPort,
   ) {}
 
   async handle(ctx: FlowContext): Promise<FlowResult> {
@@ -141,11 +144,17 @@ export class SearchAnunciosFlow implements Flow {
 
   private async onEntityText(ctx: FlowContext, data: FlowData): Promise<FlowResult> {
     const q = ctx.input.trim();
+    // Guard: el usuario tocó un botón viejo (ej. "nudge:all") mientras
+    // esperábamos texto → no buscarlo como entidad, re-pedir.
+    if (isControlId(q)) {
+      return { messages: [this.askEntityMessage(ctx)] };
+    }
     if (q.length < 2) {
       return {
         messages: [textMsg(ctx, 'Necesito al menos 2 letras. Escribe el nombre, sigla o RUC.')],
       };
     }
+    await ctx.notify(textMsg(ctx, '🔎 Consultando en SEACE… dame un segundito ⏳'));
     const matches = await this.entitySearch.search(q);
     if (matches.length === 0) {
       return {
@@ -167,6 +176,31 @@ export class SearchAnunciosFlow implements Flow {
         dataPatch: { entity: { ruc: only.ruc, nombre: only.nombre }, entityCandidates: [] },
       };
     }
+    // >10 coincidencias: no caben en la lista nativa → PDF con todas + pedir
+    // RUC/nombre exacto. Si no hay PUBLIC_BASE_URL, degrada a lista top-10 + nota.
+    if (matches.length > MAX_ENTITY_CHOICES) {
+      const pdfUrl = await this.files.hostEntitiesPdf(matches);
+      if (pdfUrl) {
+        return {
+          messages: entitiesOverflowMessages(ctx, matches.length, pdfUrl),
+          nextStep: 'awaiting-entity',
+          dataPatch: { entityCandidates: [] },
+        };
+      }
+      const top = matches.slice(0, MAX_ENTITY_CHOICES);
+      return {
+        messages: [
+          textMsg(
+            ctx,
+            `Encontré ${matches.length}. Te muestro 10; afina con ciudad/región o escríbeme el RUC exacto.`,
+          ),
+          this.entityListMessage(ctx, matches.length, top),
+        ],
+        nextStep: 'entity-disambiguation',
+        dataPatch: { entityCandidates: top },
+      };
+    }
+
     const top = matches.slice(0, MAX_ENTITY_CHOICES);
     return {
       messages: [this.entityListMessage(ctx, matches.length, top)],
@@ -198,7 +232,9 @@ export class SearchAnunciosFlow implements Flow {
       return this.start(ctx);
     }
     const filters: SearchFilters = { objeto: data.objeto };
-    if (data.entity) filters.entityRuc = data.entity.ruc;
+    // ACF: filtrar por nombre (los anuncios no cargan RUC). El nombre viene de
+    // la tabla `entities`, así coincide con el nombre raspado del anuncio.
+    if (data.entity) filters.entityNombre = data.entity.nombre;
 
     const outcome = await this.searchFacade.search({
       userId: ctx.userId,
@@ -211,11 +247,17 @@ export class SearchAnunciosFlow implements Flow {
     const reset = { objeto: undefined, entity: undefined, entityCandidates: undefined };
 
     if (outcome.source === 'cached_db' || outcome.source === 'cache') {
+      // >5 → adjuntar PDF con todos (si el backend puede hospedarlo).
+      const pdfUrl =
+        outcome.totalFound > 5
+          ? ((await this.files.hostAcfPdf(outcome.processes)) ?? undefined)
+          : undefined;
       const messages = this.resultsPresenter.build({
         phoneNumber: ctx.phoneNumber,
         phoneNumberId: ctx.phoneNumberId,
         totalFound: outcome.totalFound,
         processes: outcome.processes,
+        pdfUrl,
       });
       return {
         messages,
@@ -312,8 +354,8 @@ export class SearchAnunciosFlow implements Flow {
           title: 'Entidades',
           rows: top.map((m) => ({
             id: `entity:${m.ruc}`,
-            title: truncate(m.nombre, 24),
-            description: `RUC ${m.ruc}`,
+            title: entityTitle(m.nombre),
+            description: truncate(`${m.nombre} · RUC ${m.ruc}`, 72),
           })),
         },
       ],
@@ -327,9 +369,41 @@ function textMsg(ctx: FlowContext, body: string): OutboundMessage {
   return { kind: 'text', to: ctx.phoneNumber, phoneNumberId: ctx.phoneNumberId, body };
 }
 
+/** Mensajes para >10 coincidencias: documento PDF + pedido de RUC/nombre exacto. */
+export function entitiesOverflowMessages(
+  ctx: { phoneNumber: string; phoneNumberId: string },
+  total: number,
+  pdfUrl: string,
+): OutboundMessage[] {
+  return [
+    {
+      kind: 'document',
+      to: ctx.phoneNumber,
+      phoneNumberId: ctx.phoneNumberId,
+      link: pdfUrl,
+      filename: 'entidades.pdf',
+      caption: `${total} entidades coincidentes`,
+    },
+    {
+      kind: 'text',
+      to: ctx.phoneNumber,
+      phoneNumberId: ctx.phoneNumberId,
+      body: `Son ${total} entidades. Abre el PDF y escríbeme el *RUC* o el *nombre exacto* de la que buscas.`,
+    },
+  ];
+}
+
 function parseId(input: string, prefix: string): string | null {
   if (!input.startsWith(`${prefix}:`)) return null;
   return input.slice(prefix.length + 1);
+}
+
+/** ¿El input es un id de botón/lista (ej. "nudge:all", "acf:buscar")? Sirve para
+ * detectar taps a botones viejos cuando esperábamos texto libre. */
+function isControlId(input: string): boolean {
+  return /^(acf|nudge|objeto|entity|entact|menu|search|anuncios|entidad|subscriptions):/i.test(
+    input,
+  );
 }
 
 function truncate(s: string, n: number): string {

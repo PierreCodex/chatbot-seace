@@ -86,4 +86,22 @@ describe('HtmlRowsParser · Anuncios de Contratación Futura (ACF)', () => {
     const { rows } = parser.parseAnunciosFuturos('<html><body>error</body></html>', formId);
     expect(rows).toEqual([]);
   });
+
+  describe('parseAnunciosFuturosFragment (replay HTTP)', () => {
+    it('parsea el datatable completo (rama tbody)', () => {
+      const rows = parser.parseAnunciosFuturosFragment(fixture('anuncios-futuros.sample.html'));
+      expect(rows).toHaveLength(3);
+      expect(rows[0].objeto).toBe('obra');
+      expect(rows[0].entityNombre).toBe('MUNICIPALIDAD DISTRITAL DE CERRO COLORADO');
+    });
+
+    it('parsea <tr> pelados sin tabla contenedora (rama paginación)', () => {
+      const html = fixture('anuncios-futuros.sample.html');
+      const inner = html.match(/<tbody[^>]*ui-datatable-data[^>]*>([\s\S]*?)<\/tbody>/)?.[1] ?? '';
+      expect(inner).not.toBe('');
+      const rows = parser.parseAnunciosFuturosFragment(inner);
+      expect(rows).toHaveLength(3);
+      expect(rows[2].objeto).toBe('consultoria_obra');
+    });
+  });
 });

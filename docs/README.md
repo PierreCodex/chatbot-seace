@@ -14,6 +14,8 @@ Diseño técnico inicial del chatbot WhatsApp para consultar contrataciones púb
 | 08 | [Roadmap de implementación](./08-roadmap-implementacion.md) | Plan de fases (F0-F7+) con entregable testeable por fase, anti-scope-creep, stop conditions |
 | 09 | [Alertas y suscripciones](./09-alertas-suscripciones.md) | Catálogo de tipos de alerta (Entidad+Objeto, Objeto), restricciones de filtro de SEACE, 2 puntos de entrada y flujos WhatsApp |
 | 10 | [Roadmap UX del bot](./10-roadmap-ux-bot.md) | Roadmap para el agente UX: 4 módulos (menú, búsqueda ACF, resolvedor de entidad, suscripciones) como Flows+Presenters, contrato con backend, fases UX-1..UX-6 |
+| 11 | [Planes Free vs Premium](./11-planes.md) | Matriz de capacidades por tier (cuota de alertas, frecuencia, duración), modelado vía `wa_users.plan` + `planPolicy`, dos Flows estáticos de suscripción |
+| 12 | [Flujos del bot — implementado](./12-flujos-bot-implementados.md) | **As-built**: máquina de estados, flujos ACF y resolver de entidad, cascada L1/L2/L3, reglas de presentación (1/2-10/>10), PDFs (ACF agrupado + entidades), guards, validación con `chat:sim` |
 
 ## Decisiones de stack confirmadas
 
@@ -24,9 +26,11 @@ Diseño técnico inicial del chatbot WhatsApp para consultar contrataciones púb
 
 ## TODO de descubrimiento (siguiente iteración)
 
-1. Inspeccionar la página **Ficha de Selección** (clic en `fichaSeleccion.gif`) y mapear su DOM
-2. Probar descarga real del Excel y verificar que incluya `nidProceso`
-3. Probar cascade Departamento → Provincia → Distrito en vivo
+1. Inspeccionar la página **Ficha de Selección** (clic en `fichaSeleccion.gif`) y mapear su DOM — _post-MVP (F7+)_
+2. Probar descarga real del Excel y verificar que incluya `nidProceso` — _post-MVP (F7+)_
+3. Probar cascade Departamento → Provincia → Distrito en vivo — _post-MVP (F7+)_
 4. Stress test: 20 búsquedas seguidas en 1 sesión, observar reCAPTCHA score
-5. Confirmar que el Anuncio de Contratación Futura tiene datos vigentes (la prueba inicial mostró 0)
-6. Volcar el catálogo completo de entidades vía el modal de búsqueda
+
+> **Resueltos:** ~~ACF tiene datos vigentes~~ (F4.6: 40 filas reales scrapeadas, sin
+> bloqueo reCAPTCHA) · ~~volcar el catálogo de entidades vía el modal~~ (en curso en
+> **F4.5**, `scripts/crawl-entities.ts`).

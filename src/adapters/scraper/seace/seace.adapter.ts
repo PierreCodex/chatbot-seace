@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { ScraperPort, ScrapeResult } from '../../../ports/scraper.port';
 import type { ProcessRow, SearchFilters, TabName } from '../../../ports/persistence/types';
+import { AcfHttpScraper } from './acf-http.scraper';
+import { sameEntityName } from './entity-name.util';
 import { ContextFactory } from './browser/context.factory';
 import { SessionManager } from './session/session.manager';
 import { TabStrategyRegistry } from './strategies/tab-strategy.registry';
@@ -15,9 +17,23 @@ export class SeaceAdapter implements ScraperPort {
     private readonly contexts: ContextFactory,
     private readonly session: SessionManager,
     private readonly strategies: TabStrategyRegistry,
+    private readonly acfHttp: AcfHttpScraper,
   ) {}
 
   async search(tab: TabName, filters: SearchFilters): Promise<ScrapeResult> {
+    const isAcf = tab === 'anuncios_futuros';
+    // ACF se resuelve por replay HTTP (sin reCAPTCHA, ~10× más rápido); si algo
+    // falla, cae al scrape por navegador de abajo.
+    if (isAcf) {
+      try {
+        return this.filterByEntity(await this.acfHttp.search(filters), filters);
+      } catch (err) {
+        this.logger.warn(
+          `[anuncios_futuros] replay HTTP falló (${(err as Error).message}); cae a navegador`,
+        );
+      }
+    }
+
     const startedAt = Date.now();
     const strategy = this.strategies.get(tab);
     const jc = await this.contexts.create();
@@ -57,15 +73,32 @@ export class SeaceAdapter implements ScraperPort {
       this.logger.log(
         `[${tab}] done: ${allRows.length} filas en ${pagesScraped} páginas / ${totalPages ?? '?'} totales (${durationMs}ms)`,
       );
-      return {
+      const result: ScrapeResult = {
         rows: allRows,
         totalReported,
         totalPages,
         pagesScraped,
         durationMs,
       };
+      return isAcf ? this.filterByEntity(result, filters) : result;
     } finally {
       await jc.close();
     }
+  }
+
+  /**
+   * Filtra ACF por entidad en cliente: SEACE no permite acotar los Anuncios de
+   * Contratación Futura por entidad desde el form (solo por objeto), así que el
+   * scrape trae todo el objeto y aquí nos quedamos con las filas de la entidad
+   * pedida. Sin filtro de entidad → no toca nada. El `totalReported` de SEACE es
+   * del objeto completo; con filtro el total real es el de las filas que quedan.
+   */
+  private filterByEntity(result: ScrapeResult, filters: SearchFilters): ScrapeResult {
+    if (!filters.entityNombre) return result;
+    const rows = result.rows.filter((r) => sameEntityName(r.entityNombre, filters.entityNombre));
+    this.logger.log(
+      `[anuncios_futuros] filtro entidad "${filters.entityNombre}": ${rows.length}/${result.rows.length} filas`,
+    );
+    return { ...result, rows, totalReported: rows.length, totalPages: null };
   }
 }

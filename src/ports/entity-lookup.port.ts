@@ -16,6 +16,8 @@ export interface EntityLookupOptions {
  */
 export interface EntityLookupPort {
   searchByNombre(q: string, opts?: EntityLookupOptions): Promise<EntityLookupMatch[]>;
+  /** Búsqueda por RUC exacto en vivo (opcional; lo implementa el lookup por fetch). */
+  searchByRuc?(ruc: string, opts?: EntityLookupOptions): Promise<EntityLookupMatch[]>;
 }
 
 export const ENTITY_LOOKUP_PORT = Symbol('ENTITY_LOOKUP_PORT');

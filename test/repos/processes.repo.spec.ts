@@ -127,7 +127,7 @@ describe('PrismaProcessesRepo', () => {
       objeto: 'obra',
     });
     expect(obras).toHaveLength(1);
-    expect(obras[0].nomenclatura).toBe('LP-A');
+    expect(obras[0].procedimiento?.nomenclatura).toBe('LP-A');
 
     const stale = await repo.findByFilters(
       'procedimientos',
