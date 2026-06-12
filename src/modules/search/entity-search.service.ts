@@ -11,11 +11,11 @@ import {
   type StoredEntity,
 } from '../../ports/persistence/entities.repo.port';
 
-// v2: invalida el cache de la lógica anterior (solo-local, incompleto). El cache
-// nuevo guarda resultados unidos vivo+local.
-const CACHE_PREFIX = 'entity-query:v2:';
+// v4: invalida el cache previo. v3 topaba en 50 resultados (cortaba "Lima"=67);
+// v4 guarda hasta el tope real del modal (300), colapsado/ordenado por relevancia.
+const CACHE_PREFIX = 'entity-query:v4:';
 const CACHE_TTL_SECONDS = 24 * 60 * 60; // 24h
-const RESULT_LIMIT = 50; // ≤10 → lista nativa; >10 → PDF (el flujo decide)
+const RESULT_LIMIT = 300; // tope del modal de SEACE; ≤10 → lista nativa, >10 → PDF
 
 /**
  * Resolución de entidades. La fuente **autoritativa** es SEACE en vivo (lookup
@@ -74,13 +74,24 @@ export class EntitySearchService {
     if (live.length > 0) await this.persist(live);
 
     const merged = dedupByRuc([...live, ...local]);
+
+    // Short-circuit de match exacto: si el texto ES el nombre de una entidad, el
+    // usuario escribió el nombre completo y quiere ESA, no una lista de homónimos
+    // parciales (todas las "MUNICIPALIDAD DISTRITAL DE …" que el trigram arrastra).
+    // Colapsa a la(s) coincidencia(s) exacta(s) → el flujo muestra ficha directa.
+    const exact = merged.filter((m) => normalizeQuery(m.nombre) === q);
+    // Si no hay exacto, ordena por relevancia para que la lista ≤10 (o el PDF >10)
+    // muestre primero lo más parecido, no el orden arbitrario vivo-primero.
+    const result = exact.length > 0 ? exact : rankByRelevance(merged, q);
+
     this.logger.debug(
-      `entity-search "${raw}" · vivo=${live.length} local=${local.length} → ${merged.length}`,
+      `entity-search "${raw}" · vivo=${live.length} local=${local.length} → ${merged.length}` +
+        (exact.length > 0 ? ` (exacto: ${exact.length})` : ''),
     );
-    if (merged.length > 0) {
-      await this.cache.set(cacheKey, merged.slice(0, RESULT_LIMIT), CACHE_TTL_SECONDS);
+    if (result.length > 0) {
+      await this.cache.set(cacheKey, result.slice(0, RESULT_LIMIT), CACHE_TTL_SECONDS);
     }
-    return merged.slice(0, RESULT_LIMIT);
+    return result.slice(0, RESULT_LIMIT);
   }
 
   private async byRuc(digits: string): Promise<EntityLookupMatch[]> {
@@ -112,6 +123,24 @@ function dedupByRuc(matches: EntityLookupMatch[]): EntityLookupMatch[] {
   const seen = new Map<string, EntityLookupMatch>();
   for (const m of matches) if (!seen.has(m.ruc)) seen.set(m.ruc, m);
   return [...seen.values()];
+}
+
+/**
+ * Ordena por cercanía al texto: exacto → empieza-con → contiene-substring →
+ * contiene-todas-las-palabras → resto (solo trigram). Desempata por nombre más
+ * corto (más específico). Así la lista ≤10 / el PDF >10 priorizan lo relevante.
+ */
+function rankByRelevance(matches: EntityLookupMatch[], q: string): EntityLookupMatch[] {
+  const words = q.split(' ').filter(Boolean);
+  const score = (m: EntityLookupMatch): number => {
+    const n = normalizeQuery(m.nombre);
+    if (n === q) return 0;
+    if (n.startsWith(q)) return 1;
+    if (n.includes(q)) return 2;
+    if (words.length > 0 && words.every((w) => n.includes(w))) return 3;
+    return 4;
+  };
+  return [...matches].sort((a, b) => score(a) - score(b) || a.nombre.length - b.nombre.length);
 }
 
 function normalizeQuery(input: string): string {

@@ -52,5 +52,10 @@ export class EntitiesPdfRenderer {
 }
 
 function formatDate(d: Date): string {
-  return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('es-PE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'America/Lima',
+  });
 }

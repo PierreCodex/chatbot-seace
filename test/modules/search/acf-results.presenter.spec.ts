@@ -31,10 +31,15 @@ const present = (processes: StoredProcess[], totalFound: number, pdfUrl?: string
 describe('AcfResultsPresenter', () => {
   const p = new AcfResultsPresenter();
 
-  it('0 resultados → un solo mensaje de texto claro', () => {
+  it('0 resultados → texto claro + botones de salida (nueva búsqueda / menú)', () => {
     const msgs = p.build(present([], 0));
-    expect(msgs).toHaveLength(1);
+    expect(msgs).toHaveLength(2);
     expect(msgs[0].kind).toBe('text');
+    const footer = msgs[1];
+    expect(footer.kind).toBe('buttons');
+    if (footer.kind === 'buttons') {
+      expect(footer.buttons.map((b) => b.id)).toEqual(['acf:refine', 'menu:main']);
+    }
   });
 
   it('≤5 → header + tarjetas + footer con botones ACF', () => {
@@ -73,6 +78,33 @@ describe('AcfResultsPresenter', () => {
   it('≤5 NO adjunta documento aunque venga pdfUrl', () => {
     const msgs = p.build(present([makeAcf()], 1, 'https://files.example/acf.pdf'));
     expect(msgs.some((m) => m.kind === 'document')).toBe(false);
+  });
+
+  it('fechas: fechaAproxConv (DATE = medianoche UTC) sin corrimiento; fechaPublicacion en hora Perú', () => {
+    // Así devuelve Prisma: el @db.Date como medianoche UTC; el timestamptz como instante.
+    const msgs = p.build(
+      present(
+        [
+          makeAcf({
+            fechaPublicacion: new Date('2026-06-15T02:00:00Z'), // Lima: 14 jun 21:00
+            acf: { fechaAproxConv: new Date('2026-06-15T00:00:00Z') }, // DATE → 15 jun
+          }),
+        ],
+        1,
+      ),
+    );
+    const card = msgs[1];
+    if (card.kind === 'text') {
+      expect(card.body).toMatch(/Convocatoria:\s+~?15/); // date-only en UTC, NO 14
+      expect(card.body).toMatch(/Publicado:\s+14/); // instante en hora Perú
+    }
+  });
+
+  it('extrae el CUI del alcance y lo muestra en la tarjeta', () => {
+    const card = p.build(
+      present([makeAcf({ acf: { alcance: 'EJECUCIÓN … - III ETAPA, CON CUI: 2525669' } })], 1),
+    )[1];
+    if (card.kind === 'text') expect(card.body).toContain('CUI 2525669');
   });
 
   it('la tarjeta incluye entidad, plazo y conv. aprox. (sin ficha/bases)', () => {

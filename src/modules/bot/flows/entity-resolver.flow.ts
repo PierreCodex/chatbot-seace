@@ -1,11 +1,11 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { EntityLookupMatch } from '../../../ports/entity-lookup.port';
 import { FILES_PORT, type FilesPort } from '../../../ports/files.port';
 import type { OutboundMessage } from '../../../ports/messaging.port';
 import { EntitySearchService } from '../../search/entity-search.service';
 import { EntityResultsPresenter } from '../presenters/entity.presenter';
 import type { Flow, FlowContext, FlowResult } from '../types';
-import { SearchAnunciosFlow, entitiesOverflowMessages } from './search-anuncios.flow';
+import { entitiesOverflowMessages } from './search-anuncios.flow';
 
 const FLOW_ID = 'entity-resolver';
 const MAX_ENTITY_CHOICES = 10;
@@ -33,12 +33,10 @@ interface FlowData {
 @Injectable()
 export class EntityResolverFlow implements Flow {
   readonly id = FLOW_ID;
-  private readonly logger = new Logger(EntityResolverFlow.name);
 
   constructor(
     private readonly entitySearch: EntitySearchService,
     private readonly presenter: EntityResultsPresenter,
-    private readonly anunciosFlow: SearchAnunciosFlow,
     @Inject(FILES_PORT) private readonly files: FilesPort,
   ) {}
 
@@ -63,10 +61,10 @@ export class EntityResolverFlow implements Flow {
       kind: 'buttons',
       to: ctx.phoneNumber,
       phoneNumberId: ctx.phoneNumberId,
-      body: '¿Buscar otra entidad o terminar?',
+      body: '¿Buscar otra entidad o volver al menú?',
       buttons: [
         { id: 'entact:otra', title: '🔎 Otra entidad' },
-        { id: 'menu:main', title: '🏁 Finalizar' },
+        { id: 'menu:main', title: '📋 Menú' },
       ],
     };
   }
@@ -107,7 +105,7 @@ export class EntityResolverFlow implements Flow {
   /** Búsqueda + presentación por cantidad. Reutilizada desde cualquier paso para
    * que "escribir otra entidad" funcione siempre (flujo perdonador). */
   private async runQuery(ctx: FlowContext, q: string): Promise<FlowResult> {
-    await ctx.notify(textMsg(ctx, '🔎 Consultando en SEACE… dame un segundito ⏳'));
+    await ctx.notify(textMsg(ctx, '🔎 Consultando en SEACE…'));
     const matches = await this.entitySearch.search(q);
     if (matches.length === 0) {
       return {
@@ -135,7 +133,15 @@ export class EntityResolverFlow implements Flow {
       const pdfUrl = await this.files.hostEntitiesPdf(matches);
       if (pdfUrl) {
         return {
-          messages: [...entitiesOverflowMessages(ctx, matches.length, pdfUrl), this.followup(ctx)],
+          messages: [
+            ...entitiesOverflowMessages(
+              ctx,
+              matches.length,
+              pdfUrl,
+              `📄 Son ${matches.length} entidades. En el PDF tienes todas con su *RUC*.`,
+            ),
+            this.followup(ctx),
+          ],
           nextStep: 'awaiting-query',
           dataPatch: { entityCandidates: [], entity: undefined },
         };
@@ -191,28 +197,11 @@ export class EntityResolverFlow implements Flow {
 
   private async onAction(ctx: FlowContext, data: FlowData): Promise<FlowResult> {
     const q = ctx.input.trim();
-    const choice = parseId(q, 'entact');
-    if (choice === 'otra') return this.start(ctx);
+    // Resolvedor lookup-only: la ficha solo ofrece "Otra entidad" o "Menú"
+    // (`menu:main` lo intercepta ConversationService). Para ver anuncios, el
+    // usuario vuelve al menú y elige "Anuncios futuros".
+    if (parseId(q, 'entact') === 'otra') return this.start(ctx);
     const entity = data.entity;
-    if (choice === 'anuncios') {
-      if (!entity) {
-        this.logger.warn('onAction sin entidad, reiniciando');
-        return this.start(ctx);
-      }
-      // Handoff al flujo ACF con la entidad ya fijada; falta elegir objeto.
-      return this.anunciosFlow.startWithEntity(ctx, { ruc: entity.ruc, nombre: entity.nombre });
-    }
-    if (choice === 'alerta' && entity) {
-      return {
-        messages: [
-          textMsg(
-            ctx,
-            'Las alertas por entidad llegan muy pronto 🔔. Por ahora puedo mostrarte sus anuncios futuros.',
-          ),
-          this.presenter.card(ctx, entity),
-        ],
-      };
-    }
     // Botón de control ajeno → re-mostrar la ficha; texto libre → nueva búsqueda.
     if (STALE_CONTROL.test(q) || /^(entity|entact):/i.test(q)) {
       return entity ? { messages: [this.presenter.card(ctx, entity)] } : this.start(ctx);

@@ -133,6 +133,33 @@ describe('SearchAnunciosFlow (ACF, variante A + empujón suave)', () => {
     expect(r.nextFlowId).toBe('main-menu');
   });
 
+  it('0 resultados (inline) → botones de salida y NO sale del flujo', async () => {
+    facade.search.mockResolvedValue({ source: 'cached_db', totalFound: 0, processes: [] });
+    const r = await flow.handle(
+      ctx('menu', 'acf:buscar', {
+        objeto: 'obra',
+        entity: { ruc: '20154265061', nombre: 'GORE PIURA' },
+      }),
+    );
+    expect(presenter.build).not.toHaveBeenCalled(); // el flujo arma el mensaje, no el presenter
+    expect(r.nextFlowId).toBeUndefined(); // sigue en search-anuncios
+    expect(r.nextStep).toBe('menu');
+    const m = r.messages[0];
+    expect(m.kind).toBe('buttons');
+    if (m.kind === 'buttons') {
+      expect(m.buttons.map((b) => b.id)).toEqual(['acf:objeto', 'acf:entidad', 'menu:main']);
+    }
+  });
+
+  it('"Otro objeto" re-pide el objeto conservando la entidad', async () => {
+    const r = await flow.handle(
+      ctx('menu', 'acf:objeto', { objeto: 'obra', entity: { ruc: '1', nombre: 'X' } }),
+    );
+    expect(r.nextStep).toBe('awaiting-objeto');
+    expect(r.dataPatch).toMatchObject({ objeto: undefined });
+    expect(r.messages[0].kind).toBe('list');
+  });
+
   it('"Quitar entidad" vuelve al menú en modo A2', async () => {
     const r = await flow.handle(
       ctx('menu', 'acf:quitar', { objeto: 'obra', entity: { ruc: '1', nombre: 'X' } }),

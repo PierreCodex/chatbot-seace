@@ -104,10 +104,11 @@ Implementa **`06` §10.3 / §10.7**.
 Implementa **`06` §10.4**. Componente **compartido** (inline + standalone).
 - [x] **Inline** (dentro de ACF): texto → `EntitySearchService` → 0/1/varios →
       List de coincidencias (muestra RUC) → tap → vuelve al menú con la entidad.
-- [x] **Standalone** (`entity-resolver.flow.ts`, desde "🔎 Consultar entidad"): resuelve
-      por nombre/sigla/RUC → ficha (`entity.presenter.ts`) con
-      `[📅 Ver anuncios] [🔔 Crear alerta] [Menú]`. "Ver anuncios" hace **handoff** al
-      flujo ACF con la entidad ya fijada (`SearchAnunciosFlow.startWithEntity`).
+- [x] **Standalone** (`entity-resolver.flow.ts`, desde "🔎 Consultar entidad") =
+      **lookup-only**: resuelve por nombre/sigla/RUC → ficha (`entity.presenter.ts`) con la
+      entidad + RUC y **2 botones**: `[🔎 Otra entidad] [📋 Menú]`. **Sin** "Ver anuncios":
+      para ver anuncios de la entidad, el usuario vuelve al menú y elige 📅 Anuncios futuros
+      (decisión 2026-06-12 — el resolvedor solo consulta el RUC).
 - [x] **Entregable**: `entity-resolver.flow.spec.ts` (9). Verde.
 - [x] **>10 coincidencias → PDF de entidades** (`hostEntitiesPdf` + `entitiesOverflowMessages`):
       listado numerado nombre+RUC; el usuario responde el RUC/nombre exacto. Degrada a lista

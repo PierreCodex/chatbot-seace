@@ -11,7 +11,7 @@ export interface EntityPresentContext {
 
 /**
  * Presentación del resolvedor de entidad standalone (UX-3, docs/06 §10.4).
- *  - `card`: ficha de una entidad + acciones (Ver anuncios / Crear alerta).
+ *  - `card`: ficha de una entidad (RUC) + navegación (Otra entidad / Menú).
  *  - `disambiguation`: lista de coincidencias cuando hay varias.
  */
 @Injectable()
@@ -20,18 +20,17 @@ export class EntityResultsPresenter {
   card(ctx: EntityPresentContext, entity: EntityLookupMatch): OutboundMessage {
     const lines = [`🏢 *${entity.nombre}*`, `RUC ${entity.ruc}`];
     if (entity.tipoDoc && entity.tipoDoc.toUpperCase() !== 'RUC') lines.push(`_${entity.tipoDoc}_`);
-    // El crear-alerta aún no existe (UX-4): lo dejamos como teaser de texto, no
-    // como botón, para liberar el 3er botón a la navegación (buscar otra/finalizar).
-    lines.push('', '_Las alertas por entidad llegan pronto 🔔_');
+    // Resolvedor = solo consulta de RUC. Para ver anuncios de la entidad, el
+    // usuario vuelve al menú y elige "Anuncios futuros" (allí filtra por entidad).
+    lines.push('', '_Para ver sus anuncios futuros, vuelve al menú → 📅 Anuncios futuros._');
     return {
       kind: 'buttons',
       to: ctx.phoneNumber,
       phoneNumberId: ctx.phoneNumberId,
       body: lines.join('\n'),
       buttons: [
-        { id: 'entact:anuncios', title: '📅 Ver anuncios' },
         { id: 'entact:otra', title: '🔎 Otra entidad' },
-        { id: 'menu:main', title: '🏁 Finalizar' },
+        { id: 'menu:main', title: '📋 Menú' },
       ],
     };
   }

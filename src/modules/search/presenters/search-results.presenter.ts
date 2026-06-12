@@ -114,5 +114,11 @@ function formatMoney(s: string): string {
 }
 
 function formatDate(d: Date): string {
-  return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+  // Fijamos la zona a Lima para que el día sea consistente en cualquier server.
+  return d.toLocaleDateString('es-PE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'America/Lima',
+  });
 }

@@ -18,7 +18,11 @@ const DATATABLE = `${FORM}:dataTable`;
 const VIEWSTATE = 'javax.faces.ViewState';
 
 const PAGE_SIZE = 10; // filas por página del datatable del modal
-const DEFAULT_MAX_PAGES = 5; // hasta 50 resultados (suficiente; el modal topa en 300)
+// El modal topa en 300 coincidencias; 30 páginas las cubre. El loop corta solo
+// en cuanto una página viene incompleta, así que las búsquedas específicas
+// (pocas entidades) siguen siendo rápidas; solo las muy genéricas pagina más.
+// Antes era 5 (tope 50) y cortaba búsquedas reales como "Lima" (67 en la web).
+const DEFAULT_MAX_PAGES = 30;
 
 interface Session {
   cookie: string;

@@ -7,10 +7,10 @@ const presenter = {
   card: vi.fn().mockReturnValue({ kind: 'buttons' }),
   disambiguation: vi.fn().mockReturnValue({ kind: 'list' }),
 };
-const anunciosFlow = { startWithEntity: vi.fn().mockReturnValue({ messages: ['OBJ'] }) };
+const files = { hostEntitiesPdf: vi.fn(), hostAcfPdf: vi.fn(), getPdf: vi.fn() };
 
 function makeFlow(): EntityResolverFlow {
-  return new EntityResolverFlow(entitySearch as never, presenter as never, anunciosFlow as never);
+  return new EntityResolverFlow(entitySearch as never, presenter as never, files as never);
 }
 
 function ctx(step: string, input: string, data: Record<string, unknown> = {}): FlowContext {
@@ -110,21 +110,10 @@ describe('EntityResolverFlow (UX-3 standalone)', () => {
     expect(r.dataPatch).toMatchObject({ entity: cands[1] });
   });
 
-  it('"Ver anuncios" hace handoff al flujo ACF con la entidad fijada', async () => {
+  it('lookup-only: un botón viejo "Ver anuncios" (entact:anuncios) ya no hace handoff, re-muestra la ficha', async () => {
     const entity = { ruc: '20154265061', nombre: 'GORE PIURA', tipoDoc: 'RUC' };
     const r = await flow.handle(ctx('viewing', 'entact:anuncios', { entity }));
-    expect(anunciosFlow.startWithEntity).toHaveBeenCalledWith(expect.anything(), {
-      ruc: '20154265061',
-      nombre: 'GORE PIURA',
-    });
-    expect(r.messages).toEqual(['OBJ']);
-  });
-
-  it('"Crear alerta" responde placeholder + reitera la ficha', async () => {
-    const entity = { ruc: '1', nombre: 'GORE PIURA', tipoDoc: 'RUC' };
-    const r = await flow.handle(ctx('viewing', 'entact:alerta', { entity }));
-    expect(r.messages).toHaveLength(2);
-    expect(r.messages[0].kind).toBe('text');
-    expect(anunciosFlow.startWithEntity).not.toHaveBeenCalled();
+    expect(presenter.card).toHaveBeenCalledWith(expect.anything(), entity);
+    expect(r.nextFlowId).toBeUndefined(); // no sale del resolvedor
   });
 });

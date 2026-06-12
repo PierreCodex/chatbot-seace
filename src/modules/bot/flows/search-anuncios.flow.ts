@@ -128,6 +128,14 @@ export class SearchAnunciosFlow implements Flow {
         dataPatch: { entity: undefined },
       };
     }
+    if (choice === 'objeto') {
+      // "Otro objeto": re-pide el objeto conservando la entidad fijada.
+      return {
+        messages: [this.objetoListMessage(ctx)],
+        nextStep: 'awaiting-objeto',
+        dataPatch: { objeto: undefined },
+      };
+    }
     return { messages: [this.menuMessage(ctx, data)] };
   }
 
@@ -154,7 +162,7 @@ export class SearchAnunciosFlow implements Flow {
         messages: [textMsg(ctx, 'Necesito al menos 2 letras. Escribe el nombre, sigla o RUC.')],
       };
     }
-    await ctx.notify(textMsg(ctx, '🔎 Consultando en SEACE… dame un segundito ⏳'));
+    await ctx.notify(textMsg(ctx, '🔎 Consultando en SEACE…'));
     const matches = await this.entitySearch.search(q);
     if (matches.length === 0) {
       return {
@@ -182,7 +190,12 @@ export class SearchAnunciosFlow implements Flow {
       const pdfUrl = await this.files.hostEntitiesPdf(matches);
       if (pdfUrl) {
         return {
-          messages: entitiesOverflowMessages(ctx, matches.length, pdfUrl),
+          messages: entitiesOverflowMessages(
+            ctx,
+            matches.length,
+            pdfUrl,
+            `Son ${matches.length} entidades. Abre el PDF y escríbeme el *RUC* o el *nombre exacto* de la que quieres filtrar.`,
+          ),
           nextStep: 'awaiting-entity',
           dataPatch: { entityCandidates: [] },
         };
@@ -247,6 +260,12 @@ export class SearchAnunciosFlow implements Flow {
     const reset = { objeto: undefined, entity: undefined, entityCandidates: undefined };
 
     if (outcome.source === 'cached_db' || outcome.source === 'cache') {
+      if (outcome.processes.length === 0) {
+        // Dead-end con salidas: NO resetear ni salir del flujo. Mantener al
+        // usuario en `menu` con botones que conservan objeto+entidad para
+        // reajustar (otro objeto / otra entidad / menú).
+        return { messages: [this.emptyResultsMessage(ctx, data)], nextStep: 'menu' };
+      }
       // >5 → adjuntar PDF con todos (si el backend puede hospedarlo).
       const pdfUrl =
         outcome.totalFound > 5
@@ -270,7 +289,12 @@ export class SearchAnunciosFlow implements Flow {
     // queued: la entrega del resultado la hace SearchResultsListener.
     return {
       messages: [
-        textMsg(ctx, 'Buscando anuncios futuros… te aviso apenas tenga los resultados ✅'),
+        textMsg(
+          ctx,
+          '🔎 *Estoy buscando en el SEACE los anuncios más recientes para ti.*\n\n' +
+            'Esto puede tomar hasta ~30 segundos ⏳\n\n' +
+            'No necesitas hacer nada: te envío los resultados aquí mismo en cuanto estén listos. ✅',
+        ),
       ],
       nextFlowId: 'main-menu',
       nextStep: 'awaiting-selection',
@@ -314,6 +338,22 @@ export class SearchAnunciosFlow implements Flow {
       body: `✅ Filtros: *${objeto}* · ${alcance}\n¿Buscar así o quieres afinar?`,
       buttonText: 'Opciones',
       sections: [{ title: 'Búsqueda', rows }],
+    };
+  }
+
+  /** Sin resultados: dead-end con salidas (conserva objeto+entidad en el estado). */
+  private emptyResultsMessage(ctx: FlowContext, data: FlowData): OutboundMessage {
+    const objeto = data.objeto ? OBJETO_LABELS[data.objeto] : 'ese objeto';
+    const alcance = data.entity ? ` de *${data.entity.nombre}*` : '';
+    const entidadBtn = data.entity
+      ? { id: 'acf:entidad', title: '🏢 Otra entidad' }
+      : { id: 'acf:entidad', title: '🏢 Filtrar entidad' };
+    return {
+      kind: 'buttons',
+      to: ctx.phoneNumber,
+      phoneNumberId: ctx.phoneNumberId,
+      body: `No encontré anuncios futuros de *${objeto}*${alcance}. ¿Qué quieres hacer?`,
+      buttons: [{ id: 'acf:objeto', title: '📅 Otro objeto' }, entidadBtn, { id: 'menu:main', title: '🏁 Menú' }],
     };
   }
 
@@ -369,11 +409,17 @@ function textMsg(ctx: FlowContext, body: string): OutboundMessage {
   return { kind: 'text', to: ctx.phoneNumber, phoneNumberId: ctx.phoneNumberId, body };
 }
 
-/** Mensajes para >10 coincidencias: documento PDF + pedido de RUC/nombre exacto. */
+/**
+ * Mensajes para >10 coincidencias: documento PDF + un texto cuya instrucción
+ * depende del contexto (`instruction`), porque el PDF se usa en dos flujos:
+ *  - resolvedor lookup-only → el PDF ya es la respuesta (no se pide nada más);
+ *  - filtro de entidad en ACF → hay que elegir una para acotar la búsqueda.
+ */
 export function entitiesOverflowMessages(
   ctx: { phoneNumber: string; phoneNumberId: string },
   total: number,
   pdfUrl: string,
+  instruction: string,
 ): OutboundMessage[] {
   return [
     {
@@ -388,7 +434,7 @@ export function entitiesOverflowMessages(
       kind: 'text',
       to: ctx.phoneNumber,
       phoneNumberId: ctx.phoneNumberId,
-      body: `Son ${total} entidades. Abre el PDF y escríbeme el *RUC* o el *nombre exacto* de la que buscas.`,
+      body: instruction,
     },
   ];
 }

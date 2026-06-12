@@ -34,6 +34,16 @@ export class AcfResultsPresenter {
           ctx,
           'No hay anuncios futuros con esos filtros. Prueba con otro objeto o sin acotar por entidad.',
         ),
+        {
+          kind: 'buttons',
+          to: ctx.phoneNumber,
+          phoneNumberId: ctx.phoneNumberId,
+          body: '¿Qué hago ahora?',
+          buttons: [
+            { id: 'acf:refine', title: '✏️ Nueva búsqueda' },
+            { id: 'menu:main', title: '🏁 Menú' },
+          ],
+        },
       ];
     }
 
@@ -88,20 +98,35 @@ function formatAcfCard(p: StoredProcess): string {
   const acf = p.acf;
   const lines: string[] = [`*${p.entityNombre}*`];
 
-  const pub: string[] = [];
-  if (p.fechaPublicacion) pub.push(`📅 Publicado ${formatDate(p.fechaPublicacion)}`);
-  if (p.objeto) pub.push(capitalize(p.objeto.replace('_', ' ')));
-  if (pub.length) lines.push(pub.join(' · '));
+  // Encabezado: objeto · tipo de selección.
+  const head: string[] = [];
+  if (p.objeto) head.push(`🏗️ ${capitalize(p.objeto.replace('_', ' '))}`);
+  if (acf?.tipoSeleccion) head.push(`_${acf.tipoSeleccion}_`);
+  if (head.length) lines.push(head.join(' · '));
 
-  const conv: string[] = [];
-  if (acf?.fechaAproxConv) conv.push(`🗓️ Conv. aprox. ${formatDate(acf.fechaAproxConv)}`);
-  if (acf?.plazoDias != null) conv.push(`⏱️ ${acf.plazoDias} días`);
-  if (conv.length) lines.push(conv.join(' · '));
+  // Bloque: descripción + CUI (extraído del alcance).
+  const desc: string[] = [];
+  if (p.descripcion) desc.push(`📋 ${truncate(p.descripcion, 200)}`);
+  const cui = extractCui(acf?.alcance);
+  if (cui) desc.push(`🔖 CUI ${cui}`);
+  if (desc.length) lines.push('', ...desc);
 
-  if (acf?.tipoSeleccion) lines.push(`_${acf.tipoSeleccion}_`);
-  if (p.descripcion) lines.push(`"${truncate(p.descripcion, 180)}"`);
+  // Bloque: fechas + plazo. fechaPublicacion = instante (hora Perú);
+  // fechaAproxConv = DATE (Prisma lo da como medianoche UTC) → formatear en UTC
+  // para no correr el día hacia atrás en zonas al oeste (Lima = UTC-5).
+  const meta: string[] = [];
+  if (p.fechaPublicacion) meta.push(`📅 Publicado:  ${formatDate(p.fechaPublicacion)}`);
+  if (acf?.fechaAproxConv) meta.push(`🗓️ Convocatoria:  ~${formatDate(acf.fechaAproxConv, 'UTC')}`);
+  if (acf?.plazoDias != null) meta.push(`⏱️ Plazo:  ${acf.plazoDias} días`);
+  if (meta.length) lines.push('', ...meta);
 
   return lines.join('\n');
+}
+
+/** Extrae el código CUI del texto de alcance (ej. "… CON CUI: 2525669"). */
+function extractCui(alcance: string | null | undefined): string | null {
+  if (!alcance) return null;
+  return /\bCUI[:\s]*(\d{3,})/i.exec(alcance)?.[1] ?? null;
 }
 
 function truncate(s: string, n: number): string {
@@ -112,6 +137,6 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function formatDate(d: Date): string {
-  return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+function formatDate(d: Date, timeZone = 'America/Lima'): string {
+  return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', timeZone });
 }

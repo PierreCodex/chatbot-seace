@@ -129,7 +129,7 @@ Aplica en el filtro ACF (`awaiting-entity`) y en el resolver standalone (`entity
 
 **PDF (>10):** `EntitiesPdfRenderer` → listado numerado (nombre + RUC). El usuario responde el RUC (→ resolución directa) o el nombre exacto. Si no hay `PUBLIC_BASE_URL`, degrada a lista top-10 + nota.
 
-**Cierre del resolver standalone (UX-3).** La ficha de una entidad resuelta trae 3 botones (límite WhatsApp): `📅 Ver anuncios` · `🔎 Otra entidad` · `🏁 Finalizar`. "Crear alerta" queda como **teaser de texto** (no botón) hasta UX-4. En los dead-ends (0 resultados, >10 PDF) se adjuntan los botones de cierre `🔎 Otra entidad` / `🏁 Finalizar`. El flujo es **perdonador**: escribir un nombre/RUC en cualquier paso (`awaiting-query`, `disambiguation`, `viewing`) dispara una **nueva** búsqueda en vez de quedar atascado; `entact:otra` re-pide el texto; ids de control ajenos (`acf:`, `nudge:`…) se ignoran con re-prompt.
+**Resolver standalone = lookup-only (UX-3).** Su único trabajo es **consultar el RUC** de una entidad. La ficha resuelta trae **2 botones**: `🔎 Otra entidad` · `📋 Menú`. **No** hay "Ver anuncios" — para ver los anuncios de la entidad, el usuario vuelve al menú y elige `📅 Anuncios futuros` (allí filtra por entidad). La ficha incluye un teaser de texto que lo indica. En los dead-ends (0 resultados, >10 PDF) se adjuntan los mismos botones de cierre `🔎 Otra entidad` / `📋 Menú`. El flujo es **perdonador**: escribir un nombre/RUC en cualquier paso (`awaiting-query`, `disambiguation`, `viewing`) dispara una **nueva** búsqueda en vez de quedar atascado; `entact:otra` re-pide el texto; ids de control ajenos (`acf:`, `nudge:`…) se ignoran con re-prompt.
 
 ---
 

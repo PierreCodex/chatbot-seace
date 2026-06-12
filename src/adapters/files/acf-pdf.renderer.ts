@@ -80,11 +80,18 @@ export class AcfPdfRenderer {
 
     const meta: string[] = [];
     if (p.fechaPublicacion) meta.push(`Pub: ${formatDate(p.fechaPublicacion)}`);
-    if (acf?.fechaAproxConv) meta.push(`Conv. aprox.: ${formatDate(acf.fechaAproxConv)}`);
+    if (acf?.fechaAproxConv) meta.push(`Conv. aprox.: ${formatDate(acf.fechaAproxConv, 'UTC')}`); // DATE → UTC
     if (acf?.plazoDias != null) meta.push(`Plazo: ${acf.plazoDias} días`);
+    const cui = extractCui(acf?.alcance);
+    if (cui) meta.push(`CUI: ${cui}`);
+    if (acf?.cantidad != null) meta.push(`Cantidad: ${acf.cantidad}`);
     if (meta.length) doc.font('Helvetica').fontSize(8.5).fillColor('#444').text(meta.join('  ·  '));
 
-    if (p.descripcion) doc.font('Helvetica').fontSize(8.5).fillColor('#555').text(p.descripcion);
+    if (p.descripcion)
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#333').text(p.descripcion);
+    // Alcance completo: el detalle rico (proyecto + ubicación + CUI) que la
+    // tarjeta de WhatsApp no muestra; en el PDF sí cabe.
+    if (acf?.alcance) doc.font('Helvetica').fontSize(8).fillColor('#666').text(acf.alcance);
   }
 }
 
@@ -111,6 +118,12 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function formatDate(d: Date): string {
-  return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+/** Extrae el código CUI del texto de alcance (ej. "… CON CUI: 2525669"). */
+function extractCui(alcance: string | null | undefined): string | null {
+  if (!alcance) return null;
+  return /\bCUI[:\s]*(\d{3,})/i.exec(alcance)?.[1] ?? null;
+}
+
+function formatDate(d: Date, timeZone = 'America/Lima'): string {
+  return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', timeZone });
 }
