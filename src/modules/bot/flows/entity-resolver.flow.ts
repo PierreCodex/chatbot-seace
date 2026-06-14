@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { tgEmoji } from '../../../common/telegram-emoji';
+import { tgDivider, tgEmoji } from '../../../common/telegram-emoji';
 import type { Env } from '../../../config/env.schema';
 import type { EntityLookupMatch } from '../../../ports/entity-lookup.port';
 import { FILES_PORT, type FilesPort } from '../../../ports/files.port';
@@ -105,16 +105,35 @@ export class EntityResolverFlow implements Flow {
   /** Entrada desde MainMenuFlow: pide el texto de la entidad. */
   start(ctx: FlowContext): FlowResult {
     return {
-      messages: [
-        textMsg(
-          ctx,
-          'Escribe el *nombre, sigla o RUC* de la entidad. Ej: _GORE Piura_, _Muni Sullana_, _20154265061_.',
-        ),
-      ],
+      messages: [this.askEntityMsg(ctx)],
       nextFlowId: FLOW_ID,
       nextStep: 'awaiting-query',
       dataPatch: { entityCandidates: undefined, entity: undefined },
     };
+  }
+
+  /** Prompt para pedir la entidad (channel-aware). */
+  private askEntityMsg(ctx: FlowContext): OutboundMessage {
+    if (this.isTelegram) {
+      return {
+        kind: 'text',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body:
+          `🏢 <b>Consultar entidad</b>\n` +
+          `${tgDivider(8)}\n` +
+          `Escribí el <b>nombre</b>, la <b>sigla</b> o el <b>RUC</b> de la entidad que querés consultar.\n\n` +
+          `<i>Por ejemplo:</i>\n` +
+          `${tgEmoji('search')} <code>GORE Piura</code>\n` +
+          `${tgEmoji('search')} <code>Muni Sullana</code>\n` +
+          `${tgEmoji('ruc')} <code>20154265061</code>`,
+      };
+    }
+    return textMsg(
+      ctx,
+      'Escribe el *nombre, sigla o RUC* de la entidad. Ej: _GORE Piura_, _Muni Sullana_, _20154265061_.',
+    );
   }
 
   private async onQuery(ctx: FlowContext): Promise<FlowResult> {
@@ -123,9 +142,7 @@ export class EntityResolverFlow implements Flow {
     if (q === 'entact:otra') return this.start(ctx);
     // Guard: tap a un botón viejo mientras esperábamos texto → re-pedir.
     if (STALE_CONTROL.test(q) || /^(entity|entact):/i.test(q)) {
-      return {
-        messages: [textMsg(ctx, 'Escribe el *nombre, sigla o RUC* de la entidad para buscar.')],
-      };
+      return { messages: [this.askEntityMsg(ctx)] };
     }
     if (q.length < 2) {
       return {
