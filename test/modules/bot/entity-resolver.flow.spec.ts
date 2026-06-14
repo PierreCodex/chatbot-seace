@@ -6,11 +6,18 @@ const entitySearch = { search: vi.fn() };
 const presenter = {
   card: vi.fn().mockReturnValue({ kind: 'buttons' }),
   disambiguation: vi.fn().mockReturnValue({ kind: 'list' }),
+  matchList: vi.fn().mockReturnValue({ kind: 'buttons' }),
 };
 const files = { hostEntitiesPdf: vi.fn(), hostAcfPdf: vi.fn(), getPdf: vi.fn() };
 
-function makeFlow(): EntityResolverFlow {
-  return new EntityResolverFlow(entitySearch as never, presenter as never, files as never);
+function makeFlow(channel: 'whatsapp' | 'telegram' = 'whatsapp'): EntityResolverFlow {
+  const config = { get: () => channel };
+  return new EntityResolverFlow(
+    entitySearch as never,
+    presenter as never,
+    files as never,
+    config as never,
+  );
 }
 
 function ctx(step: string, input: string, data: Record<string, unknown> = {}): FlowContext {
@@ -19,7 +26,7 @@ function ctx(step: string, input: string, data: Record<string, unknown> = {}): F
     phoneNumber: '+51999',
     phoneNumberId: 'pn1',
     input,
-    notify: async () => {},
+    notify: async () => ({ messageId: 's1' }),
     state: {
       userId: 'u1',
       phoneNumber: '+51999',
@@ -65,7 +72,9 @@ describe('EntityResolverFlow (UX-3 standalone)', () => {
   });
 
   it('"🔎 Otra entidad" (entact:otra) re-pide el texto sin buscar', async () => {
-    const r = await flow.handle(ctx('viewing', 'entact:otra', { entity: { ruc: '1', nombre: 'X' } }));
+    const r = await flow.handle(
+      ctx('viewing', 'entact:otra', { entity: { ruc: '1', nombre: 'X' } }),
+    );
     expect(entitySearch.search).not.toHaveBeenCalled();
     expect(r.messages[0].kind).toBe('text');
     expect(r.nextStep).toBe('awaiting-query');
@@ -73,7 +82,9 @@ describe('EntityResolverFlow (UX-3 standalone)', () => {
 
   it('escribir otra entidad en viewing dispara una nueva búsqueda', async () => {
     entitySearch.search.mockResolvedValue([{ ruc: '9', nombre: 'MUNI SULLANA', tipoDoc: 'RUC' }]);
-    const r = await flow.handle(ctx('viewing', 'muni sullana', { entity: { ruc: '1', nombre: 'X' } }));
+    const r = await flow.handle(
+      ctx('viewing', 'muni sullana', { entity: { ruc: '1', nombre: 'X' } }),
+    );
     expect(entitySearch.search).toHaveBeenCalledWith('muni sullana');
     expect(r.nextStep).toBe('viewing');
   });
@@ -97,6 +108,18 @@ describe('EntityResolverFlow (UX-3 standalone)', () => {
     expect(presenter.disambiguation).toHaveBeenCalled();
     expect(r.nextStep).toBe('disambiguation');
     expect(r.dataPatch?.entityCandidates).toHaveLength(2);
+  });
+
+  it('Telegram: varias coincidencias → matchList (RUCs directo), sin paso de elegir', async () => {
+    const tgFlow = makeFlow('telegram');
+    entitySearch.search.mockResolvedValue([
+      { ruc: '1', nombre: 'GORE PIURA', tipoDoc: 'RUC' },
+      { ruc: '2', nombre: 'MUNI PIURA', tipoDoc: 'RUC' },
+    ]);
+    const r = await tgFlow.handle(ctx('awaiting-query', 'piura'));
+    expect(presenter.matchList).toHaveBeenCalled();
+    expect(presenter.disambiguation).not.toHaveBeenCalled();
+    expect(r.nextStep).toBe('awaiting-query');
   });
 
   it('elegir de la lista muestra la ficha', async () => {

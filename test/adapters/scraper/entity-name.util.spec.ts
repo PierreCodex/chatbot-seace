@@ -26,7 +26,12 @@ describe('entity-name util (filtro ACF por entidad)', () => {
   });
 
   it('no matchea entidades distintas ni cadenas vacías', () => {
-    expect(sameEntityName('MUNICIPALIDAD DISTRITAL DE SAN LUIS - LIMA', 'MUNICIPALIDAD DISTRITAL DE SAN LUIS - CANETE')).toBe(false);
+    expect(
+      sameEntityName(
+        'MUNICIPALIDAD DISTRITAL DE SAN LUIS - LIMA',
+        'MUNICIPALIDAD DISTRITAL DE SAN LUIS - CANETE',
+      ),
+    ).toBe(false);
     expect(sameEntityName('', 'MINISTERIO DE SALUD')).toBe(false);
     expect(sameEntityName(null, null)).toBe(false);
   });

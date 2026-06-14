@@ -49,6 +49,11 @@ enum UserPlan {
   premium
 }
 
+enum UserChannel {
+  whatsapp
+  telegram
+}
+
 enum NotifKind {
   search_result
   subscription_hit
@@ -199,9 +204,15 @@ model ProcessHistory {
 // =====================================================================
 
 model WaUser {
-  id            String   @id @default(uuid()) @db.Uuid
-  phoneE164     String   @unique @map("phone_e164") @db.VarChar(20)
-  displayName   String?  @map("display_name")
+  id            String      @id @default(uuid()) @db.Uuid
+  // Identidad multi-canal. `channelUserId` = chat_id (Telegram) o teléfono (WhatsApp).
+  // La unicidad real es (channel, channelUserId): un mismo número en WA y un chat_id
+  // en TG son dos registros distintos (unificar persona = post-MVP). `phoneE164` queda
+  // OPCIONAL: solo WhatsApp lo llena; Telegram puede no tener teléfono.
+  channel       UserChannel @default(whatsapp)
+  channelUserId String      @map("channel_user_id")
+  phoneE164     String?     @unique @map("phone_e164") @db.VarChar(20)
+  displayName   String?     @map("display_name")
   firstSeenAt   DateTime @default(now()) @map("first_seen_at") @db.Timestamptz
   lastActiveAt  DateTime @default(now()) @map("last_active_at") @db.Timestamptz
   totalMessages BigInt   @default(0) @map("total_messages")
@@ -217,6 +228,7 @@ model WaUser {
   notifications Notification[]
   conversation  Conversation?
 
+  @@unique([channel, channelUserId])
   @@index([phoneE164])
   @@map("wa_users")
 }

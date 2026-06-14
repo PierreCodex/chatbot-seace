@@ -150,7 +150,9 @@ Implementa **`06` §10.5 / §10.6**.
 
 ### UX-6 · Integración + pulido (1-2 días)
 - [ ] Conectar con la `AnunciosFuturosStrategy` real cuando el backend la entregue.
-- [ ] Manejo de errores/edge (`03` §"Manejo de errores"): timeouts, 0 resultados, input basura.
+- [x] Manejo de errores/edge (`03` §"Manejo de errores"): **timeouts a SEACE** (`seaceFetch`
+      12s + reintento → error tipado → mensaje humano, inline y en cola), 0 resultados (botones
+      de salida), input basura (guards de control-id). Falta solo el e2e real.
 - [ ] Conversación end-to-end por WhatsApp real.
 
 ## 4. Lo que NO haces (es del backend)

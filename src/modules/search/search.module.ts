@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { KapsoMessagingModule } from '../../adapters/messaging/kapso/kapso.module';
+import { MessagingModule } from '../../adapters/messaging/messaging.module';
 import { SeaceScraperModule } from '../../adapters/scraper/seace/seace.module';
 import { EntitySearchService } from './entity-search.service';
 import { AcfResultsPresenter } from './presenters/acf-results.presenter';
@@ -8,7 +8,7 @@ import { SearchResultsListener } from './search-results.listener';
 import { SearchFacade } from './search.facade';
 
 @Module({
-  imports: [SeaceScraperModule, KapsoMessagingModule],
+  imports: [SeaceScraperModule, MessagingModule.register()],
   providers: [
     EntitySearchService,
     SearchFacade,

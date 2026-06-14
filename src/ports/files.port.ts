@@ -20,8 +20,9 @@ export interface FilesPort {
    */
   hostEntitiesPdf(matches: EntityLookupMatch[]): Promise<string | null>;
 
-  /** Recupera un PDF hospedado por su token (lo sirve el FilesController). */
-  getPdf(token: string): Promise<Buffer | null>;
+  /** Recupera un PDF hospedado por su token (binario + nombre de archivo según el
+   * tipo: anuncios o entidades). Lo sirve el FilesController. */
+  getPdf(token: string): Promise<{ buffer: Buffer; filename: string } | null>;
 }
 
 export const FILES_PORT = Symbol('FILES_PORT');

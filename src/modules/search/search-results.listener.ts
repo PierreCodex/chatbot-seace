@@ -91,13 +91,12 @@ export class SearchResultsListener implements OnModuleInit {
     const ctx = await this.facade.getJobContext(jobId);
     if (!ctx) return;
     if (ctx.phoneNumber && ctx.phoneNumberId) {
+      const timedOut = /no respondió a tiempo|timeout|abort/i.test(reason ?? '');
+      const body = timedOut
+        ? '⏳ SEACE está tardando más de lo normal. Intenta de nuevo en un momento.'
+        : 'Tuve un problema buscando en SEACE. Intenta de nuevo en unos minutos 🙏';
       await this.sendAll([
-        {
-          kind: 'text',
-          to: ctx.phoneNumber,
-          phoneNumberId: ctx.phoneNumberId,
-          body: 'Tuve un problema buscando en SEACE. Intenta de nuevo en unos minutos.',
-        },
+        { kind: 'text', to: ctx.phoneNumber, phoneNumberId: ctx.phoneNumberId, body },
       ]);
     }
     this.logger.warn(`job ${jobId} falló (${reason}) ctx=${ctx.userId ?? 'anon'}`);

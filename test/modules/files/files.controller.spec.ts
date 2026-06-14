@@ -11,7 +11,7 @@ function makeController(getPdf: FilesPort['getPdf']): FilesController {
 describe('FilesController', () => {
   it('sirve el binario como StreamableFile cuando el token existe', async () => {
     const pdf = Buffer.from('%PDF-1.4 fake');
-    const getPdf = vi.fn().mockResolvedValue(pdf);
+    const getPdf = vi.fn().mockResolvedValue({ buffer: pdf, filename: 'entidades.pdf' });
     const res = await makeController(getPdf).getPdf('tok');
 
     expect(getPdf).toHaveBeenCalledWith('tok');

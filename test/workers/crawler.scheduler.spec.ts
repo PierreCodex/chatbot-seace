@@ -15,18 +15,18 @@ describe('CrawlerScheduler', () => {
   it('agrega conteos por página y pasa incremental:true en el tick horario', async () => {
     const repo = makeRepo();
     const scraper = {
-      crawlAcf: vi.fn(async (opts: { incremental: boolean; onPage: (p: unknown) => Promise<unknown> }) => {
-        await opts.onPage({ objeto: 'obra', rows: [{}, {}], pageIdx: 0 });
-        await opts.onPage({ objeto: 'obra', rows: [{}], pageIdx: 1 });
-      }),
+      crawlAcf: vi.fn(
+        async (opts: { incremental: boolean; onPage: (p: unknown) => Promise<unknown> }) => {
+          await opts.onPage({ objeto: 'obra', rows: [{}, {}], pageIdx: 0 });
+          await opts.onPage({ objeto: 'obra', rows: [{}], pageIdx: 1 });
+        },
+      ),
     };
 
     const sched = new CrawlerScheduler(scraper as never, repo as never, config(true));
     await sched.hourlyIncremental();
 
-    expect(scraper.crawlAcf).toHaveBeenCalledWith(
-      expect.objectContaining({ incremental: true }),
-    );
+    expect(scraper.crawlAcf).toHaveBeenCalledWith(expect.objectContaining({ incremental: true }));
     expect(repo.upsertMany).toHaveBeenCalledTimes(2);
   });
 
@@ -35,9 +35,7 @@ describe('CrawlerScheduler', () => {
     const scraper = { crawlAcf: vi.fn(async () => {}) };
     const sched = new CrawlerScheduler(scraper as never, repo as never, config(true));
     await sched.dailyFull();
-    expect(scraper.crawlAcf).toHaveBeenCalledWith(
-      expect.objectContaining({ incremental: false }),
-    );
+    expect(scraper.crawlAcf).toHaveBeenCalledWith(expect.objectContaining({ incremental: false }));
   });
 
   it('no corre nada si CRAWLER_ENABLED es false', async () => {

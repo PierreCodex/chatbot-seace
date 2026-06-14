@@ -50,7 +50,8 @@ describe('FilesService', () => {
     const token = (url as string).split('/').pop()!.replace('.pdf', '');
     const pdf = await svc.getPdf(token);
     expect(pdf).not.toBeNull();
-    expect((pdf as Buffer).subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(pdf!.buffer.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(pdf!.filename).toBe('anuncios-futuros.pdf');
   });
 
   it('devuelve null si no hay PUBLIC_BASE_URL (degrada a tarjetas)', async () => {
@@ -101,6 +102,7 @@ describe('FilesService', () => {
     expect(url).toMatch(/^https:\/\/x\.test\/files\/[0-9a-f-]+\.pdf$/);
     const token = (url as string).split('/').pop()!.replace('.pdf', '');
     const pdf = await svc.getPdf(token);
-    expect((pdf as Buffer).subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(pdf!.buffer.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(pdf!.filename).toBe('entidades.pdf');
   });
 });

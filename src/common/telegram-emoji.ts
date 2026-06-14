@@ -1,0 +1,48 @@
+/**
+ * Registro de custom emoji (animados) de Telegram para DataSeace. Vive en `common/`
+ * porque lo usan tanto los presenters (modules/) como el adapter (adapters/), y el
+ * boundary prohíbe que modules/ importe de adapters/.
+ *
+ * Los `custom_emoji_id` se capturaron vía dump de JSON (ver docs/emojis*.md). Notas:
+ *  - Renderizan en **texto/caption** (`tgEmoji`) y, desde Bot API 9.4, como **ícono
+ *    de botón** (`icon_custom_emoji_id`, usar el `.id`).
+ *  - Requieren que el **dueño del bot** tenga Premium (9.4). Quien los *ve* no.
+ *  - Cada uno lleva un **fallback** (emoji normal) por si el cliente no los renderiza.
+ */
+interface CustomEmoji {
+  id: string;
+  fallback: string;
+}
+
+export const TG_EMOJI = {
+  ok: { id: '5319153143093665867', fallback: '✅' },
+  loading: { id: '5260559811967202833', fallback: '⏳' },
+  alert: { id: '5257993594777650079', fallback: '⚡' },
+  premium: { id: '5215191209131123104', fallback: '💎' },
+  money: { id: '5258487193894143425', fallback: '💸' },
+  help: { id: '5258015065319162719', fallback: '❓' },
+  back: { id: '5258134705928158693', fallback: '◀️' },
+  star: { id: '5257961708940445381', fallback: '⭐' },
+  important: { id: '5257975787843243760', fallback: '‼️' },
+  fire: { id: '5212920133504212456', fallback: '🔥' },
+  dot: { id: '5260284397189346108', fallback: '🔴' },
+  search: { id: '5220108512893344933', fallback: '🔎' },
+  ruc: { id: '5215480011322042129', fallback: '🔖' },
+  write: { id: '5395444784611480792', fallback: '✍️' },
+} satisfies Record<string, CustomEmoji>;
+
+export type TgEmojiName = keyof typeof TG_EMOJI;
+
+/** Tag `<tg-emoji>` para usar en texto/caption (requiere html:true). */
+export function tgEmoji(name: TgEmojiName): string {
+  const e = TG_EMOJI[name];
+  return `<tg-emoji emoji-id="${e.id}">${e.fallback}</tg-emoji>`;
+}
+
+// Segmento del separador animado (emoji ➿); repetido arma una línea de color.
+const DIVIDER_SEGMENT = '5467658560840149395';
+
+/** Línea divisoria animada (n segmentos). Solo en texto/caption con html:true. */
+export function tgDivider(segments = 10): string {
+  return `<tg-emoji emoji-id="${DIVIDER_SEGMENT}">➿</tg-emoji>`.repeat(segments);
+}

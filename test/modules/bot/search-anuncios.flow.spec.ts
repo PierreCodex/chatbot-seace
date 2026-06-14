@@ -17,7 +17,7 @@ function ctx(step: string, input: string, data: Record<string, unknown> = {}): F
     phoneNumber: '+51999',
     phoneNumberId: 'pn1',
     input,
-    notify: async () => {},
+    notify: async () => ({ messageId: 's1' }),
     state: {
       userId: 'u1',
       phoneNumber: '+51999',
@@ -158,6 +158,19 @@ describe('SearchAnunciosFlow (ACF, variante A + empujón suave)', () => {
     expect(r.nextStep).toBe('awaiting-objeto');
     expect(r.dataPatch).toMatchObject({ objeto: undefined });
     expect(r.messages[0].kind).toBe('list');
+  });
+
+  it('si la búsqueda falla por timeout, responde mensaje humano y vuelve al menú', async () => {
+    const err = new Error('SEACE no respondió a tiempo');
+    err.name = 'SeaceTimeoutError';
+    facade.search.mockRejectedValue(err);
+    const r = await flow.handle(
+      ctx('menu', 'acf:buscar', { objeto: 'obra', entity: { ruc: '1', nombre: 'X' } }),
+    );
+    expect(r.nextFlowId).toBe('main-menu');
+    const m = r.messages[0];
+    expect(m.kind).toBe('text');
+    if (m.kind === 'text') expect(m.body).toMatch(/tardando/i);
   });
 
   it('"Quitar entidad" vuelve al menú en modo A2', async () => {

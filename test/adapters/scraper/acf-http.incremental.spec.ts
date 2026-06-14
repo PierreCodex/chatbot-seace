@@ -23,7 +23,18 @@ describe('AcfHttpScraper · crawl incremental (early-stop)', () => {
 
   // Una fila ACF mínima (10 celdas) — el contenido no importa para el stop.
   const acfRow = (n: number) =>
-    `<tr>${['', `ENTIDAD ${n}`, '11/06/2026', 'AS', 'Obra', `desc ${n}`, 'Nacional', '1', '30 días', '01/07/2026']
+    `<tr>${[
+      '',
+      `ENTIDAD ${n}`,
+      '11/06/2026',
+      'AS',
+      'Obra',
+      `desc ${n}`,
+      'Nacional',
+      '1',
+      '30 días',
+      '01/07/2026',
+    ]
       .map((t) => `<td>${t}</td>`)
       .join('')}</tr>`;
 

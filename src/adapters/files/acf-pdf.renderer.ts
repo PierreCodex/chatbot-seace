@@ -125,5 +125,10 @@ function extractCui(alcance: string | null | undefined): string | null {
 }
 
 function formatDate(d: Date, timeZone = 'America/Lima'): string {
-  return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', timeZone });
+  return d.toLocaleDateString('es-PE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone,
+  });
 }

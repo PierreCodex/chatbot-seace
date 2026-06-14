@@ -16,6 +16,9 @@ Diseño técnico inicial del chatbot WhatsApp para consultar contrataciones púb
 | 10 | [Roadmap UX del bot](./10-roadmap-ux-bot.md) | Roadmap para el agente UX: 4 módulos (menú, búsqueda ACF, resolvedor de entidad, suscripciones) como Flows+Presenters, contrato con backend, fases UX-1..UX-6 |
 | 11 | [Planes Free vs Premium](./11-planes.md) | Matriz de capacidades por tier (cuota de alertas, frecuencia, duración), modelado vía `wa_users.plan` + `planPolicy`, dos Flows estáticos de suscripción |
 | 12 | [Flujos del bot — implementado](./12-flujos-bot-implementados.md) | **As-built**: máquina de estados, flujos ACF y resolver de entidad, cascada L1/L2/L3, reglas de presentación (1/2-10/>10), PDFs (ACF agrupado + entidades), guards, validación con `chat:sim` |
+| 13 | [Migración a Telegram](./13-telegram-migracion.md) | Plan completo del bot en Telegram: coexistencia WA+Telegram por env, grammY como `Api`+tipos (no framework), mapeo de `kind`/identidad, adapter+webhook, desbloqueo de suscripciones nativas, fases T0–T4 |
+| 14 | [Actualización de la data](./14-actualizacion-de-data.md) | Crawler ACF (incremental 1h + completo 24h) vs umbral de frescura `DB_FRESHNESS` (6h), cascada BD/cache/vivo, local vs producción, comando manual `crawl:acf`, troubleshooting de "búsqueda lenta" |
+| 15 | [Custom emoji Telegram](./15-telegram-emojis.md) | Dónde viven los `custom_emoji_id` (`src/common/telegram-emoji.ts`), registro nombre→id→fallback, reglas Bot API 9.4, cómo capturar/cambiar un emoji |
 
 ## Decisiones de stack confirmadas
 

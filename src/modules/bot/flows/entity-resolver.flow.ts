@@ -1,11 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { tgEmoji } from '../../../common/telegram-emoji';
+import type { Env } from '../../../config/env.schema';
 import type { EntityLookupMatch } from '../../../ports/entity-lookup.port';
 import { FILES_PORT, type FilesPort } from '../../../ports/files.port';
 import type { OutboundMessage } from '../../../ports/messaging.port';
 import { EntitySearchService } from '../../search/entity-search.service';
 import { EntityResultsPresenter } from '../presenters/entity.presenter';
 import type { Flow, FlowContext, FlowResult } from '../types';
-import { entitiesOverflowMessages } from './search-anuncios.flow';
+import { entitiesOverflowMessages, friendlyError } from './search-anuncios.flow';
 
 const FLOW_ID = 'entity-resolver';
 const MAX_ENTITY_CHOICES = 10;
@@ -34,11 +37,33 @@ interface FlowData {
 export class EntityResolverFlow implements Flow {
   readonly id = FLOW_ID;
 
+  private readonly isTelegram: boolean;
+
   constructor(
     private readonly entitySearch: EntitySearchService,
     private readonly presenter: EntityResultsPresenter,
     @Inject(FILES_PORT) private readonly files: FilesPort,
-  ) {}
+    config: ConfigService<Env, true>,
+  ) {
+    this.isTelegram = config.get('MESSAGING_CHANNEL', { infer: true }) === 'telegram';
+  }
+
+  /** Varias coincidencias: Telegram muestra todos los RUC (sin elegir); WhatsApp
+   * usa la lista interactiva de desambiguación (elegir una). */
+  private multiMatch(ctx: FlowContext, total: number, top: EntityLookupMatch[]): FlowResult {
+    if (this.isTelegram) {
+      return {
+        messages: [this.presenter.matchList(ctx, total, top)],
+        nextStep: 'awaiting-query',
+        dataPatch: { entityCandidates: [], entity: undefined },
+      };
+    }
+    return {
+      messages: [this.presenter.disambiguation(ctx, total, top)],
+      nextStep: 'disambiguation',
+      dataPatch: { entityCandidates: top },
+    };
+  }
 
   async handle(ctx: FlowContext): Promise<FlowResult> {
     const data = (ctx.state.data ?? {}) as FlowData;
@@ -57,6 +82,14 @@ export class EntityResolverFlow implements Flow {
   /** Botones de cierre tras un dead-end (0 resultados / lista en PDF): seguir
    * buscando o finalizar. `menu:main` lo intercepta ConversationService → menú. */
   private followup(ctx: FlowContext): OutboundMessage {
+    // Telegram: guía de texto (sin botones que se apilen en el historial).
+    if (this.isTelegram) {
+      return textMsg(
+        ctx,
+        `${tgEmoji('write')} <i>Escribe otro nombre para buscar · /menu para volver</i>`,
+        true,
+      );
+    }
     return {
       kind: 'buttons',
       to: ctx.phoneNumber,
@@ -105,8 +138,20 @@ export class EntityResolverFlow implements Flow {
   /** Búsqueda + presentación por cantidad. Reutilizada desde cualquier paso para
    * que "escribir otra entidad" funcione siempre (flujo perdonador). */
   private async runQuery(ctx: FlowContext, q: string): Promise<FlowResult> {
-    await ctx.notify(textMsg(ctx, '🔎 Consultando en SEACE…'));
-    const matches = await this.entitySearch.search(q);
+    // "Consultando…" transitorio: se borra al entregar el resultado (deleteMessageIds).
+    const status = await ctx.notify(this.consultandoMsg(ctx));
+    const del = status.messageId ? [status.messageId] : undefined;
+
+    let matches;
+    try {
+      matches = await this.entitySearch.search(q);
+    } catch (err) {
+      return {
+        messages: [textMsg(ctx, friendlyError(err)), this.followup(ctx)],
+        nextStep: 'awaiting-query',
+        deleteMessageIds: del,
+      };
+    }
     if (matches.length === 0) {
       return {
         messages: [
@@ -118,6 +163,7 @@ export class EntityResolverFlow implements Flow {
         ],
         nextStep: 'awaiting-query',
         dataPatch: { entityCandidates: [], entity: undefined },
+        deleteMessageIds: del,
       };
     }
     if (matches.length === 1) {
@@ -126,6 +172,7 @@ export class EntityResolverFlow implements Flow {
         messages: [this.presenter.card(ctx, only)],
         nextStep: 'viewing',
         dataPatch: { entity: only, entityCandidates: [] },
+        deleteMessageIds: del,
       };
     }
     // >10: PDF con todas + botones de cierre (degrada a top-10 sin PDF).
@@ -144,28 +191,29 @@ export class EntityResolverFlow implements Flow {
           ],
           nextStep: 'awaiting-query',
           dataPatch: { entityCandidates: [], entity: undefined },
+          deleteMessageIds: del,
         };
       }
       const top = matches.slice(0, MAX_ENTITY_CHOICES);
-      return {
-        messages: [
-          textMsg(
-            ctx,
-            `Encontré ${matches.length}. Te muestro 10; afina con ciudad/región o escríbeme el RUC exacto.`,
-          ),
-          this.presenter.disambiguation(ctx, matches.length, top),
-        ],
-        nextStep: 'disambiguation',
-        dataPatch: { entityCandidates: top },
-      };
+      return { ...this.multiMatch(ctx, matches.length, top), deleteMessageIds: del };
     }
 
     const top = matches.slice(0, MAX_ENTITY_CHOICES);
-    return {
-      messages: [this.presenter.disambiguation(ctx, matches.length, top)],
-      nextStep: 'disambiguation',
-      dataPatch: { entityCandidates: top },
-    };
+    return { ...this.multiMatch(ctx, matches.length, top), deleteMessageIds: del };
+  }
+
+  /** "Consultando…" (animation-ready en Telegram: html + tgEmoji, swappable). */
+  private consultandoMsg(ctx: FlowContext): OutboundMessage {
+    if (this.isTelegram) {
+      return {
+        kind: 'text',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body: `${tgEmoji('loading')} <i>Consultando en SEACE…</i>`,
+      };
+    }
+    return textMsg(ctx, '🔎 Consultando en SEACE…');
   }
 
   private async onPicked(ctx: FlowContext, data: FlowData): Promise<FlowResult> {
@@ -213,8 +261,14 @@ export class EntityResolverFlow implements Flow {
   }
 }
 
-function textMsg(ctx: FlowContext, body: string): OutboundMessage {
-  return { kind: 'text', to: ctx.phoneNumber, phoneNumberId: ctx.phoneNumberId, body };
+function textMsg(ctx: FlowContext, body: string, html = false): OutboundMessage {
+  return {
+    kind: 'text',
+    to: ctx.phoneNumber,
+    phoneNumberId: ctx.phoneNumberId,
+    body,
+    ...(html ? { html: true } : {}),
+  };
 }
 
 function parseId(input: string, prefix: string): string | null {

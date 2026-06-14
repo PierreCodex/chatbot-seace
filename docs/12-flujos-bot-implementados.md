@@ -159,8 +159,9 @@ Aplica en el filtro ACF (`awaiting-entity`) y en el resolver standalone (`entity
   "Menú" re-mostraba la ficha (bug corregido).
 - **Tap a botón viejo en paso de texto:** si en `awaiting-entity`/`awaiting-query` llega un id de control (`nudge:all`, `acf:…`, etc.) se **re-pide** en vez de buscarlo como entidad (guard `isControlId`). Antes disparaba un L3 de 3 min sobre basura.
 - **Texto donde se espera botón:** en `awaiting-objeto`/`menu`/`soft-nudge`/disambiguación, si el usuario escribe en vez de tocar → re-muestra la opción ("elige de la lista").
-- **Búsquedas `queued`:** el contexto vive en Redis por `jobId`; el worker entrega el resultado sin importar qué haga el usuario mientras tanto. Ningún flujo "en espera" se pierde.
-- **Error en un flow:** reset a `main-menu`.
+- **Búsquedas `queued`:** el contexto vive en Redis por `jobId`; el worker entrega el resultado sin importar qué haga el usuario mientras tanto. Ningún flujo "en espera" se pierde. Si el job **falla**, el `SearchResultsListener.onJobFailed` avisa al usuario (mensaje distinto si fue timeout).
+- **Timeouts a SEACE (el bot nunca se cuelga):** toda petición HTTP a SEACE pasa por `seaceFetch` (`adapters/scraper/seace/http.util.ts`) con **timeout duro de 12s (`AbortSignal.timeout`) + 1 reintento**. Si SEACE no responde, lanza un error **tipado** (`SeaceTimeoutError` / `SeaceNetworkError`) en vez de dejar la petición colgada para siempre. Las capas de arriba lo capturan y responden un **mensaje humano** (timeout → "⏳ SEACE está tardando…"; genérico → "problema temporal, reintenta") tanto inline (búsqueda de entidad/ACF) como en el path en cola. El flujo detecta el tipo por el `name` del error, sin importar el adapter (respeta el boundary `modules/` ✕ `adapters/`).
+- **Error en un flow:** reset a `main-menu` (red de seguridad para errores no previstos).
 
 ---
 

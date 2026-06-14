@@ -13,8 +13,18 @@ export const envSchema = z.object({
 
   REDIS_URL: z.string().url(),
 
+  // Canal de mensajería activo. El composition root bindea MESSAGING_PORT al
+  // adapter correspondiente (Kapso/WhatsApp o Telegram). Ambos coexisten; se elige
+  // por env. Ver docs/13-telegram-migracion.md.
+  MESSAGING_CHANNEL: z.enum(['whatsapp', 'telegram']).default('whatsapp'),
+
   KAPSO_API_KEY: z.string().default(''),
   KAPSO_WEBHOOK_SECRET: z.string().default(''),
+
+  // Telegram (grammY usado solo como Api-client). Token de @BotFather; el secret
+  // se valida contra el header X-Telegram-Bot-Api-Secret-Token del webhook.
+  TELEGRAM_BOT_TOKEN: z.string().default(''),
+  TELEGRAM_WEBHOOK_SECRET: z.string().default(''),
 
   // URL pública del API para servir archivos efímeros (PDF de anuncios ACF) que
   // Meta descarga por link. Dev = túnel ngrok; prod = dominio de Railway/Contabo.

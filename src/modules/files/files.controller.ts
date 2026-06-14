@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Header,
-  Inject,
-  NotFoundException,
-  Param,
-  StreamableFile,
-} from '@nestjs/common';
+import { Controller, Get, Inject, NotFoundException, Param, StreamableFile } from '@nestjs/common';
 import { FILES_PORT, type FilesPort } from '../../ports/files.port';
 
 /**
@@ -19,11 +11,13 @@ export class FilesController {
   constructor(@Inject(FILES_PORT) private readonly files: FilesPort) {}
 
   @Get(':token.pdf')
-  @Header('Content-Type', 'application/pdf')
-  @Header('Content-Disposition', 'inline; filename="anuncios-futuros.pdf"')
   async getPdf(@Param('token') token: string): Promise<StreamableFile> {
     const pdf = await this.files.getPdf(token);
     if (!pdf) throw new NotFoundException('Archivo no encontrado o expirado');
-    return new StreamableFile(pdf);
+    // Nombre según el tipo (anuncios-futuros.pdf / entidades.pdf), no hardcodeado.
+    return new StreamableFile(pdf.buffer, {
+      type: 'application/pdf',
+      disposition: `inline; filename="${pdf.filename}"`,
+    });
   }
 }

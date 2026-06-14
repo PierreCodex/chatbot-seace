@@ -7,6 +7,7 @@ import type {
   SearchFilters,
 } from '../../../ports/persistence/types';
 import { HtmlRowsParser } from './parsers/html-rows.parser';
+import { seaceFetch } from './http.util';
 import {
   SEACE_BUSCADOR_URL,
   SEACE_USER_AGENT,
@@ -234,7 +235,7 @@ export class AcfHttpScraper {
 
   /** GET inicial: cookies + ViewState + valores del select Objeto desde el HTML. */
   private async openSession(): Promise<HttpSession> {
-    const g = await fetch(SEACE_BUSCADOR_URL, {
+    const g = await seaceFetch(SEACE_BUSCADOR_URL, {
       headers: { 'user-agent': SEACE_USER_AGENT, accept: 'text/html' },
     });
     const cookieHeader = (g.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ');
@@ -267,7 +268,7 @@ export class AcfHttpScraper {
 
   /** POST AJAX a SEACE reusando cookies + ViewState; renueva el ViewState. */
   private async post(sess: HttpSession, body: string): Promise<string> {
-    const res = await fetch(SEACE_BUSCADOR_URL, {
+    const res = await seaceFetch(SEACE_BUSCADOR_URL, {
       method: 'POST',
       headers: {
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',

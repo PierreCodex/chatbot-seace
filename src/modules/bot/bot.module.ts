@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { KapsoMessagingModule } from '../../adapters/messaging/kapso/kapso.module';
+import { MessagingModule } from '../../adapters/messaging/messaging.module';
 import { SearchModule } from '../search/search.module';
 import { ConversationService } from './conversation.service';
 import { ConversationStore } from './conversation.store';
@@ -10,12 +10,15 @@ import { SearchAnunciosFlow } from './flows/search-anuncios.flow';
 import { SearchProcesosFlow } from './flows/search-procesos.flow';
 import { EntityResultsPresenter } from './presenters/entity.presenter';
 import { MenuPresenter } from './presenters/menu.presenter';
+import { TelegramWebhookController } from './telegram-webhook.controller';
 import { WaUsersService } from './wa-users.service';
 import { WebhookController } from './webhook.controller';
 
 @Module({
-  imports: [KapsoMessagingModule, SearchModule],
-  controllers: [WebhookController],
+  imports: [MessagingModule.register(), SearchModule],
+  // Ambos controllers se registran; solo recibe tráfico el del canal activo
+  // (cada plataforma llama únicamente a su propia ruta).
+  controllers: [WebhookController, TelegramWebhookController],
   providers: [
     ConversationStore,
     FlowRegistry,

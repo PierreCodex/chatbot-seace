@@ -5,6 +5,7 @@ import type {
   EntityLookupPort,
 } from '../../../ports/entity-lookup.port';
 import { EntityRowsParser } from './parsers/entity-rows.parser';
+import { seaceFetch } from './http.util';
 import { SEACE_BUSCADOR_URL, SEACE_USER_AGENT, TAB_FORM_IDS } from './seace.types';
 
 // Modal "Buscar Entidad" de la pestaña ACF (la pestaña por defecto → presente en
@@ -109,7 +110,7 @@ export class EntityFetchLookup implements EntityLookupPort {
 
   /** GET inicial (cookies + ViewState) + abrir el modal (lupa ajax). */
   private async openSession(): Promise<Session> {
-    const g = await fetch(SEACE_BUSCADOR_URL, {
+    const g = await seaceFetch(SEACE_BUSCADOR_URL, {
       headers: { 'user-agent': SEACE_USER_AGENT, accept: 'text/html' },
     });
     const cookie = (g.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ');
@@ -136,7 +137,7 @@ export class EntityFetchLookup implements EntityLookupPort {
   }
 
   private async post(session: Session, body: string): Promise<string> {
-    const res = await fetch(SEACE_BUSCADOR_URL, {
+    const res = await seaceFetch(SEACE_BUSCADOR_URL, {
       method: 'POST',
       headers: {
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',

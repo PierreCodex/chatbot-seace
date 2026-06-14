@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { UserChannel } from '@prisma/client';
 import type { StoredWaUser, WaUsersRepoPort } from '../../../ports/persistence/wa-users.repo.port';
 import { PrismaService } from './prisma.service';
 
@@ -6,10 +7,18 @@ import { PrismaService } from './prisma.service';
 export class PrismaWaUsersRepo implements WaUsersRepoPort {
   constructor(private readonly prisma: PrismaService) {}
 
-  async upsertByPhone(phoneE164: string, displayName?: string | null): Promise<StoredWaUser> {
+  async upsertByChannel(
+    channel: UserChannel,
+    channelUserId: string,
+    displayName?: string | null,
+  ): Promise<StoredWaUser> {
+    // En WhatsApp el id-de-canal ES el teléfono → espejarlo en phoneE164.
+    const phoneE164 = channel === 'whatsapp' ? channelUserId : null;
     return this.prisma.waUser.upsert({
-      where: { phoneE164 },
+      where: { channel_channelUserId: { channel, channelUserId } },
       create: {
+        channel,
+        channelUserId,
         phoneE164,
         ...(displayName !== undefined ? { displayName } : {}),
       },
@@ -19,6 +28,10 @@ export class PrismaWaUsersRepo implements WaUsersRepoPort {
         ...(displayName !== undefined ? { displayName } : {}),
       },
     });
+  }
+
+  async upsertByPhone(phoneE164: string, displayName?: string | null): Promise<StoredWaUser> {
+    return this.upsertByChannel('whatsapp', phoneE164, displayName);
   }
 
   findById(id: string): Promise<StoredWaUser | null> {

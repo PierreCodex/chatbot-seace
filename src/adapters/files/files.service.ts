@@ -36,16 +36,16 @@ export class FilesService implements FilesPort {
 
   async hostAcfPdf(processes: StoredProcess[]): Promise<string | null> {
     if (processes.length === 0) return null;
-    return this.host(() => this.renderer.render(processes));
+    return this.host(() => this.renderer.render(processes), 'anuncios-futuros.pdf');
   }
 
   async hostEntitiesPdf(matches: EntityLookupMatch[]): Promise<string | null> {
     if (matches.length === 0) return null;
-    return this.host(() => this.entitiesRenderer.render(matches));
+    return this.host(() => this.entitiesRenderer.render(matches), 'entidades.pdf');
   }
 
-  /** Renderiza, cachea el binario bajo un token y devuelve la URL pública. */
-  private async host(render: () => Promise<Buffer>): Promise<string | null> {
+  /** Renderiza, cachea el binario + nombre bajo un token y devuelve la URL pública. */
+  private async host(render: () => Promise<Buffer>, filename: string): Promise<string | null> {
     if (!this.publicBaseUrl) {
       this.logger.debug('PUBLIC_BASE_URL no configurado; se omite el PDF');
       return null;
@@ -53,7 +53,11 @@ export class FilesService implements FilesPort {
     try {
       const pdf = await render();
       const token = randomUUID();
-      await this.cache.set(`${CACHE_PREFIX}${token}`, pdf.toString('base64'), TTL_SECONDS);
+      await this.cache.set(
+        `${CACHE_PREFIX}${token}`,
+        { pdf: pdf.toString('base64'), filename },
+        TTL_SECONDS,
+      );
       return `${this.publicBaseUrl}/files/${token}.pdf`;
     } catch (err) {
       this.logger.warn(`no se pudo hospedar el PDF: ${(err as Error).message}`);
@@ -61,8 +65,14 @@ export class FilesService implements FilesPort {
     }
   }
 
-  async getPdf(token: string): Promise<Buffer | null> {
-    const b64 = await this.cache.get<string>(`${CACHE_PREFIX}${token}`);
-    return b64 ? Buffer.from(b64, 'base64') : null;
+  async getPdf(token: string): Promise<{ buffer: Buffer; filename: string } | null> {
+    const cached = await this.cache.get<{ pdf: string; filename: string }>(
+      `${CACHE_PREFIX}${token}`,
+    );
+    if (!cached?.pdf) return null;
+    return {
+      buffer: Buffer.from(cached.pdf, 'base64'),
+      filename: cached.filename || 'documento.pdf',
+    };
   }
 }

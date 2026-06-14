@@ -163,7 +163,13 @@ export class SearchAnunciosFlow implements Flow {
       };
     }
     await ctx.notify(textMsg(ctx, '🔎 Consultando en SEACE…'));
-    const matches = await this.entitySearch.search(q);
+    let matches;
+    try {
+      matches = await this.entitySearch.search(q);
+    } catch (err) {
+      this.logger.warn(`búsqueda de entidad falló: ${(err as Error).message}`);
+      return { messages: [textMsg(ctx, friendlyError(err))] };
+    }
     if (matches.length === 0) {
       return {
         messages: [
@@ -249,15 +255,26 @@ export class SearchAnunciosFlow implements Flow {
     // la tabla `entities`, así coincide con el nombre raspado del anuncio.
     if (data.entity) filters.entityNombre = data.entity.nombre;
 
-    const outcome = await this.searchFacade.search({
-      userId: ctx.userId,
-      phoneNumber: ctx.phoneNumber,
-      phoneNumberId: ctx.phoneNumberId,
-      tab: 'anuncios_futuros',
-      filters,
-    });
-
     const reset = { objeto: undefined, entity: undefined, entityCandidates: undefined };
+
+    let outcome;
+    try {
+      outcome = await this.searchFacade.search({
+        userId: ctx.userId,
+        phoneNumber: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        tab: 'anuncios_futuros',
+        filters,
+      });
+    } catch (err) {
+      this.logger.warn(`runSearch falló: ${(err as Error).message}`);
+      return {
+        messages: [textMsg(ctx, friendlyError(err))],
+        nextFlowId: 'main-menu',
+        nextStep: 'awaiting-selection',
+        dataPatch: reset,
+      };
+    }
 
     if (outcome.source === 'cached_db' || outcome.source === 'cache') {
       if (outcome.processes.length === 0) {
@@ -353,7 +370,11 @@ export class SearchAnunciosFlow implements Flow {
       to: ctx.phoneNumber,
       phoneNumberId: ctx.phoneNumberId,
       body: `No encontré anuncios futuros de *${objeto}*${alcance}. ¿Qué quieres hacer?`,
-      buttons: [{ id: 'acf:objeto', title: '📅 Otro objeto' }, entidadBtn, { id: 'menu:main', title: '🏁 Menú' }],
+      buttons: [
+        { id: 'acf:objeto', title: '📅 Otro objeto' },
+        entidadBtn,
+        { id: 'menu:main', title: '🏁 Menú' },
+      ],
     };
   }
 
@@ -407,6 +428,14 @@ export class SearchAnunciosFlow implements Flow {
 
 function textMsg(ctx: FlowContext, body: string): OutboundMessage {
   return { kind: 'text', to: ctx.phoneNumber, phoneNumberId: ctx.phoneNumberId, body };
+}
+
+/** Mensaje humano según el tipo de error (detecta el name del error tipado del
+ * adapter sin importarlo — `modules/` no puede importar `adapters/`). */
+export function friendlyError(err: unknown): string {
+  return (err as Error)?.name === 'SeaceTimeoutError'
+    ? '⏳ SEACE está tardando más de lo normal. Intenta de nuevo en un momento.'
+    : '⚠️ Tuve un problema consultando SEACE. Reintenta en un ratito 🙏';
 }
 
 /**

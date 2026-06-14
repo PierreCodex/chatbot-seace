@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ContextFactory } from './browser/context.factory';
+import { seaceFetch } from './http.util';
 import { EntityRowsParser } from './parsers/entity-rows.parser';
 import { SessionManager } from './session/session.manager';
 import {
@@ -258,7 +259,7 @@ export class EntityHttpScraper {
 
   /** POST HTTP a SEACE reusando cookies + ViewState; renueva el ViewState. */
   private async post(sess: HttpSession, body: string): Promise<string> {
-    const res = await fetch(SEACE_BUSCADOR_URL, {
+    const res = await seaceFetch(SEACE_BUSCADOR_URL, {
       method: 'POST',
       headers: {
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',

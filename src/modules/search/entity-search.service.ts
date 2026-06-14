@@ -11,9 +11,9 @@ import {
   type StoredEntity,
 } from '../../ports/persistence/entities.repo.port';
 
-// v4: invalida el cache previo. v3 topaba en 50 resultados (cortaba "Lima"=67);
-// v4 guarda hasta el tope real del modal (300), colapsado/ordenado por relevancia.
-const CACHE_PREFIX = 'entity-query:v4:';
+// v5: invalida el cache previo. v4 guardaba el ruido puro-trigram (ej. "universidad
+// nacional de frontera" → 69); v5 descarta ese ruido cuando hay matches reales.
+const CACHE_PREFIX = 'entity-query:v5:';
 const CACHE_TTL_SECONDS = 24 * 60 * 60; // 24h
 const RESULT_LIMIT = 300; // tope del modal de SEACE; ≤10 → lista nativa, >10 → PDF
 
@@ -128,7 +128,12 @@ function dedupByRuc(matches: EntityLookupMatch[]): EntityLookupMatch[] {
 /**
  * Ordena por cercanía al texto: exacto → empieza-con → contiene-substring →
  * contiene-todas-las-palabras → resto (solo trigram). Desempata por nombre más
- * corto (más específico). Así la lista ≤10 / el PDF >10 priorizan lo relevante.
+ * corto (más específico).
+ *
+ * Además **descarta el ruido puro-trigram** (score 4) cuando hay coincidencias
+ * reales (≤3): así "universidad nacional de frontera" devuelve solo la(s) que
+ * contiene(n) "frontera", no las ~68 "UNIVERSIDAD NACIONAL DE …" que el trigram
+ * arrastra por parecido. Si TODO es trigram (typo, sin match real), se conserva.
  */
 function rankByRelevance(matches: EntityLookupMatch[], q: string): EntityLookupMatch[] {
   const words = q.split(' ').filter(Boolean);
@@ -140,7 +145,10 @@ function rankByRelevance(matches: EntityLookupMatch[], q: string): EntityLookupM
     if (words.length > 0 && words.every((w) => n.includes(w))) return 3;
     return 4;
   };
-  return [...matches].sort((a, b) => score(a) - score(b) || a.nombre.length - b.nombre.length);
+  const scored = matches.map((m) => ({ m, s: score(m) }));
+  const best = scored.reduce((min, x) => (x.s < min ? x.s : min), 4);
+  const kept = best <= 3 ? scored.filter((x) => x.s <= 3) : scored;
+  return kept.sort((a, b) => a.s - b.s || a.m.nombre.length - b.m.nombre.length).map((x) => x.m);
 }
 
 function normalizeQuery(input: string): string {

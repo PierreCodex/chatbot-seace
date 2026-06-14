@@ -3,10 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { AcfHttpScraper } from '../adapters/scraper/seace/acf-http.scraper';
 import type { Env } from '../config/env.schema';
-import {
-  PROCESSES_REPO,
-  type ProcessesRepoPort,
-} from '../ports/persistence/processes.repo.port';
+import { PROCESSES_REPO, type ProcessesRepoPort } from '../ports/persistence/processes.repo.port';
 
 type CrawlMode = 'incremental' | 'full';
 

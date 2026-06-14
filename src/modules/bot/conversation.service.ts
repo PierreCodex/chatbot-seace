@@ -1,23 +1,34 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { UserChannel } from '@prisma/client';
+import type { Env } from '../../config/env.schema';
 import type { InboundMessage, MessagingPort, OutboundMessage } from '../../ports/messaging.port';
 import { MESSAGING_PORT } from '../../ports/messaging.port';
 import { ConversationStore } from './conversation.store';
 import { FlowRegistry } from './flow.registry';
-import type { ConversationState, FlowContext } from './types';
+import type { ConversationState, FlowContext, FlowResult } from './types';
 import { WaUsersService } from './wa-users.service';
 
 const DEFAULT_FLOW = 'main-menu';
+const ENTITY_FLOW = 'entity-resolver';
 
 @Injectable()
 export class ConversationService {
   private readonly logger = new Logger(ConversationService.name);
+  // Canal activo (MESSAGING_CHANNEL). Coincide con el enum UserChannel; se usa para
+  // identificar al usuario por (canal, id-de-canal) — el `phoneNumber` del inbound
+  // es el teléfono en WhatsApp o el chat_id en Telegram.
+  private readonly channel: UserChannel;
 
   constructor(
     private readonly store: ConversationStore,
     private readonly registry: FlowRegistry,
     private readonly waUsers: WaUsersService,
     @Inject(MESSAGING_PORT) private readonly messaging: MessagingPort,
-  ) {}
+    config: ConfigService<Env, true>,
+  ) {
+    this.channel = config.get('MESSAGING_CHANNEL', { infer: true });
+  }
 
   async processInbound(inbound: InboundMessage): Promise<void> {
     if (!inbound.phoneNumber || !inbound.phoneNumberId) {
@@ -25,11 +36,12 @@ export class ConversationService {
       return;
     }
 
-    // Upsert user
-    const user = await this.waUsers.upsertByPhone(inbound.phoneNumber);
+    // Upsert user por identidad de canal (teléfono en WA, chat_id en Telegram).
+    const user = await this.waUsers.upsertByChannel(this.channel, inbound.phoneNumber);
 
     // Load or create conversation state
     let state = await this.store.get(inbound.phoneNumber);
+    const isNewConversation = !state || inbound.isNewConversation;
     if (!state) {
       state = this.createState(user.id, inbound);
     }
@@ -47,6 +59,19 @@ export class ConversationService {
       input = 'menu:main';
     }
 
+    // Comando GLOBAL `/ent <texto>`: lookup de entidad desde cualquier punto. Con
+    // argumento busca directo; sin argumento abre el flujo (pide el nombre).
+    const entArg = parseEntityCommand(input);
+    if (entArg !== null) {
+      state = {
+        ...state,
+        flowId: ENTITY_FLOW,
+        step: entArg ? 'awaiting-query' : 'initial',
+        data: {},
+      };
+      input = entArg;
+    }
+
     // Find current flow
     const flow = this.registry.get(state.flowId) ?? this.registry.get(DEFAULT_FLOW);
     if (!flow) {
@@ -60,6 +85,7 @@ export class ConversationService {
       phoneNumberId: inbound.phoneNumberId,
       state,
       input,
+      isNewConversation,
       notify: (message) => this.send(message),
     };
 
@@ -81,10 +107,8 @@ export class ConversationService {
         await this.store.set(nextState);
       }
 
-      // Send outbound messages
-      for (const msg of result.messages) {
-        await this.send(msg);
-      }
+      // Entrega los mensajes según la intención de navegación.
+      await this.deliver(result, inbound);
     } catch (err) {
       this.logger.error(`Flow ${flow.id} failed: ${(err as Error).message}`);
       // Reset to main menu on error
@@ -99,12 +123,45 @@ export class ConversationService {
     }
   }
 
-  private async send(message: OutboundMessage): Promise<void> {
+  /**
+   * Entrega los mensajes del resultado respetando `navigation` (Telegram). Si el canal
+   * no soporta edit/delete o no hay mensaje origen, degrada a envío normal.
+   */
+  private async deliver(result: FlowResult, inbound: InboundMessage): Promise<void> {
+    const msgs = result.messages;
+    const srcId = inbound.sourceMessageId;
+
+    if (result.navigation === 'edit' && this.messaging.editMessage && srcId && msgs.length > 0) {
+      try {
+        await this.messaging.editMessage(msgs[0], srcId);
+      } catch (err) {
+        this.logger.debug(`editMessage falló, envío normal: ${(err as Error).message}`);
+        await this.send(msgs[0]);
+      }
+      for (const m of msgs.slice(1)) await this.send(m);
+    } else {
+      if (result.navigation === 'replace' && this.messaging.deleteMessage && srcId) {
+        await this.messaging.deleteMessage(inbound.phoneNumber, srcId).catch(() => {});
+      }
+      for (const m of msgs) await this.send(m);
+    }
+
+    // Borra mensajes transitorios (ej. "Consultando…") una vez entregado el resultado.
+    if (result.deleteMessageIds?.length && this.messaging.deleteMessage) {
+      for (const id of result.deleteMessageIds) {
+        await this.messaging.deleteMessage(inbound.phoneNumber, id).catch(() => {});
+      }
+    }
+  }
+
+  private async send(message: OutboundMessage): Promise<{ messageId: string }> {
     try {
       const { messageId } = await this.messaging.send(message);
       this.logger.debug(`Sent ${message.kind} message ${messageId} to ${message.to}`);
+      return { messageId };
     } catch (err) {
       this.logger.error(`Failed to send message: ${(err as Error).message}`);
+      return { messageId: '' };
     }
   }
 
@@ -124,6 +181,13 @@ export class ConversationService {
 /** Palabras que reinician al menú desde cualquier flujo (normalizadas: sin
  * tildes, sin "/" inicial, minúsculas). Cubre los términos intuitivos típicos. */
 const RESET_COMMANDS = new Set(['menu', 'inicio', 'salir', 'cancelar', 'start', 'volver']);
+
+/** Detecta `/ent`, `/ent piura`, `/ent@DataSeaceBot 20154265061`. Devuelve el
+ * argumento (puede ser ''), o null si no es el comando. */
+function parseEntityCommand(input: string): string | null {
+  const m = /^\/ent(?:@\w+)?(?:\s+(.*))?$/i.exec(input.trim());
+  return m ? (m[1] ?? '').trim() : null;
+}
 
 function isResetCommand(input: string): boolean {
   const norm = input

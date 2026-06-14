@@ -42,13 +42,33 @@ describe('EntitySearchService · relevancia', () => {
     expect(res[0].ruc).toBe('20100000001');
   });
 
-  it('sin match exacto → ordena por relevancia (la que contiene el término primero)', async () => {
+  it('sin match exacto → deja lo relevante y descarta el ruido trigram', async () => {
     const svc = makeService([
       m('MUNICIPALIDAD PROVINCIAL DE ANTA', '20100000010'),
       m('MUNICIPALIDAD DISTRITAL DE CUSCA', '20100000011'),
     ]);
     const res = await svc.search('cusca');
-    expect(res[0].ruc).toBe('20100000011'); // la que contiene "cusca" va primero
+    expect(res[0].ruc).toBe('20100000011'); // la que contiene "cusca"
+    expect(res).toHaveLength(1); // "anta" (solo parecido trigram) se descarta
+  });
+
+  it('término específico descarta homónimos sin la palabra clave (caso "frontera")', async () => {
+    const svc = makeService([
+      m('UNIVERSIDAD NACIONAL DE FRONTERA - SULLANA', '20600000001'),
+      m('UNIVERSIDAD NACIONAL DE PIURA', '20600000002'),
+      m('UNIVERSIDAD NACIONAL DE TUMBES', '20600000003'),
+    ]);
+    const res = await svc.search('universidad nacional de frontera');
+    expect(res).toHaveLength(1);
+    expect(res[0].ruc).toBe('20600000001');
+  });
+
+  it('typo (sin ninguna coincidencia real) → conserva el fallback trigram', async () => {
+    const svc = makeService([
+      m('MUNICIPALIDAD DISTRITAL DE CUSCA', '20100000020'),
+      m('MUNICIPALIDAD DISTRITAL DE ATE', '20100000021'),
+    ]);
+    const res = await svc.search('cuzca'); // con z: nadie lo contiene → todo trigram
     expect(res).toHaveLength(2);
   });
 });
