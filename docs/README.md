@@ -20,7 +20,8 @@ Diseño técnico inicial del chatbot WhatsApp para consultar contrataciones púb
 | 14 | [Actualización de la data](./14-actualizacion-de-data.md) | Crawler ACF (incremental 1h + completo 24h) vs umbral de frescura `DB_FRESHNESS` (6h), cascada BD/cache/vivo, local vs producción, comando manual `crawl:acf`, troubleshooting de "búsqueda lenta" |
 | 15 | [Custom emoji Telegram](./15-telegram-emojis.md) | Dónde viven los `custom_emoji_id` (`src/common/telegram-emoji.ts`), registro nombre→id→fallback, reglas Bot API 9.4, cómo capturar/cambiar un emoji |
 | 16 | [Telegram — estado](./16-telegram-estado.md) | **Estado vivo**: qué está implementado (canal, identidad, menús, flujos, tarjetas, navegación in-place, typing, efectos) vs pendiente (motor de alertas, mejoras a evaluar) + mapa de archivos |
-| 17 | [Roles, permisos y comandos admin](./17-roles-permisos-alertas.md) | **Diseño congelado**: roles owner/seller (env vs BD), planes free/premium, cobro manual (sin Stars), comandos admin (`/activar` `/miplan` `/agregarvendedor` `/panico`…), anti-escalamiento, plan efectivo + vencimientos, auditoría inmutable, integración con cuotas de alerta, fases de implementación |
+| 17 | [Roles, permisos y comandos admin](./17-roles-permisos-alertas.md) | **Diseño + estado**: roles owner/seller (env vs BD), planes free/premium, cobro manual (sin Stars), anti-escalamiento, plan efectivo + vencimientos, auditoría inmutable, fases 1–5 implementadas + mapa de archivos |
+| 18 | [Comandos del bot — guía práctica](./18-comandos-admin.md) | **Cheatsheet operativo**: cada comando (`/miplan` `/activar` `/extender` `/usuario` `/agregarvendedor` `/panico`…) con sintaxis, ejemplos, quién puede usarlo, flujo típico de cobro y reglas que el bot hace cumplir |
 
 ## Decisiones de stack confirmadas
 
