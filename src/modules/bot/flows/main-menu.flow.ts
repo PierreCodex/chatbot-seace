@@ -5,6 +5,7 @@ import type { Flow, FlowContext, FlowResult } from '../types';
 import { EntityResolverFlow } from './entity-resolver.flow';
 import { SearchAnunciosFlow } from './search-anuncios.flow';
 import { SearchProcesosFlow } from './search-procesos.flow';
+import { SubscribeFlow } from './subscribe.flow';
 
 @Injectable()
 export class MainMenuFlow implements Flow {
@@ -15,6 +16,7 @@ export class MainMenuFlow implements Flow {
     private readonly anunciosFlow: SearchAnunciosFlow,
     private readonly entityFlow: EntityResolverFlow,
     private readonly searchFlow: SearchProcesosFlow,
+    private readonly subscribeFlow: SubscribeFlow,
   ) {}
 
   async handle(ctx: FlowContext): Promise<FlowResult> {
@@ -46,17 +48,12 @@ export class MainMenuFlow implements Flow {
         return { ...r, navigation: 'edit' };
       }
       case 'acf:subscribe':
-        return this.replyAndShowMenu(
-          ctx,
-          'Las alertas llegan muy pronto 🔔. Por ahora puedo mostrarte anuncios futuros cuando quieras.',
-        );
+        // "🔔 Avísame": crea una alerta heredando los filtros de la última búsqueda.
+        return this.subscribeFlow.startCreate(ctx);
 
-      // ── Otras entradas del menú (pendientes de fase) ──
+      // ── Mis alertas (gestión) ──
       case 'subscriptions':
-        return this.replyAndShowMenu(
-          ctx,
-          'Tus alertas llegan en la próxima fase 🔔. Mientras tanto, revisa los anuncios futuros 👇',
-        );
+        return this.subscribeFlow.startManage(ctx);
       case 'entity':
       case 'entidad': {
         const r = await this.entityFlow.start(ctx);

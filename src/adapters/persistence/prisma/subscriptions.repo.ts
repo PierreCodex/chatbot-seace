@@ -17,6 +17,7 @@ export class PrismaSubscriptionsRepo implements SubscriptionsRepoPort {
         user: { connect: { id: data.userId } },
         tab: data.tab,
         entityRuc: data.entityRuc ?? null,
+        entityNombre: data.entityNombre ?? null,
         tipoSeleccionIds: data.tipoSeleccionIds ?? [],
         objeto: data.objeto ?? null,
         departamento: data.departamento ?? null,
@@ -24,12 +25,17 @@ export class PrismaSubscriptionsRepo implements SubscriptionsRepoPort {
         valorMin: data.valorMin ?? null,
         valorMax: data.valorMax ?? null,
         frequency: data.frequency ?? 'daily',
+        expiresAt: data.expiresAt ?? null,
       },
     });
   }
 
   findById(id: string): Promise<StoredSubscription | null> {
     return this.prisma.subscription.findUnique({ where: { id } });
+  }
+
+  countActive(userId: string): Promise<number> {
+    return this.prisma.subscription.count({ where: { userId, status: 'active' } });
   }
 
   listByUser(userId: string, status?: SubStatus): Promise<StoredSubscription[]> {

@@ -308,6 +308,9 @@ model Subscription {
   userId           String              @map("user_id") @db.Uuid
   tab              ProcesoTab
   entityRuc        String?             @map("entity_ruc") @db.VarChar(11)
+  // ACF: los anuncios traen el NOMBRE de la entidad, no el RUC → el matcher (A1)
+  // cruza por nombre. Se guarda al crear la alerta. Ver docs/09 §3.
+  entityNombre     String?             @map("entity_nombre")
   tipoSeleccionIds Int[]               @map("tipo_seleccion_ids")
   objeto           ObjetoContratacion?
   departamento     String?

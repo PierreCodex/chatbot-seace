@@ -9,6 +9,7 @@ import { EntityResolverFlow } from './flows/entity-resolver.flow';
 import { MainMenuFlow } from './flows/main-menu.flow';
 import { SearchAnunciosFlow } from './flows/search-anuncios.flow';
 import { SearchProcesosFlow } from './flows/search-procesos.flow';
+import { SubscribeFlow } from './flows/subscribe.flow';
 import { EntityResultsPresenter } from './presenters/entity.presenter';
 import { MenuPresenter } from './presenters/menu.presenter';
 import { TelegramWebhookController } from './telegram-webhook.controller';
@@ -29,6 +30,7 @@ import { WebhookController } from './webhook.controller';
     SearchAnunciosFlow,
     EntityResolverFlow,
     SearchProcesosFlow,
+    SubscribeFlow,
     WaUsersService,
     ConversationService,
     {
@@ -39,11 +41,13 @@ import { WebhookController } from './webhook.controller';
         anuncios: SearchAnunciosFlow,
         entity: EntityResolverFlow,
         searchProcesos: SearchProcesosFlow,
+        subscribe: SubscribeFlow,
       ) => {
         registry.register(mainMenu);
         registry.register(anuncios);
         registry.register(entity);
         registry.register(searchProcesos);
+        registry.register(subscribe);
         return true;
       },
       inject: [
@@ -52,6 +56,7 @@ import { WebhookController } from './webhook.controller';
         SearchAnunciosFlow,
         EntityResolverFlow,
         SearchProcesosFlow,
+        SubscribeFlow,
       ],
     },
   ],

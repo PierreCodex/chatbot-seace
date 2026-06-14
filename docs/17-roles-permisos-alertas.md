@@ -237,9 +237,15 @@ inmutable.
 5. ✅ **Comandos owner** (`/agregarvendedor` `/quitarvendedor` `/vendedores`
    `/suspender` `/reactivar` `/panico` `/auditoria` `/premium` `/porvencer`
    `/historial`).
-6. ⏳ **`planPolicy`** (free 3 / premium 10) + integración en `subscribe.flow`.
+6. **Motor de alertas** (docs/09):
+   - ✅ **6a — Crear/gestionar alertas:** `SubscribeFlow` (botón 🔔 Avísame hereda los
+     filtros de la última búsqueda → frecuencia + duración gated por plan), `planPolicy`
+     (cuota free 3 / premium 10 vía `countActive`), "Mis alertas" (listar/borrar).
+     Columna `subscriptions.entity_nombre` (match A1 por nombre). 10 tests.
+   - ⏳ **6b — Matcher + Notifier:** cruzar procesos nuevos del crawl ↔ suscripciones
+     activas → `subscription_hits` → entregar (inmediata `hourly` / digest diario/semanal).
 7. ⏳ **Cron de vencimiento** (`AdminRepo.expireOverdue` ya existe; falta el agendado +
-   notificación) + manejo de over-quota.
+   notificación) + auto-expirar alertas (`subscriptions.expires_at`) + manejo de over-quota.
 8. ⏳ **`setMyCommands` por scope** (menú admin solo para owner/sellers).
 9. ⏳ **Confirmación inline** en destructivos (`/quitarvendedor` `/panico` `/suspender`).
 

@@ -25,6 +25,11 @@ const presenter = { build: vi.fn().mockReturnValue(menuMsg) };
 const anuncios = { id: 'search-anuncios', start: vi.fn().mockReturnValue({ messages: ['ACF'] }) };
 const entity = { id: 'entity-resolver', start: vi.fn().mockReturnValue({ messages: ['ENT'] }) };
 const procesos = { id: 'search-procesos', start: vi.fn().mockReturnValue({ messages: ['PROC'] }) };
+const subscribe = {
+  id: 'subscribe',
+  startCreate: vi.fn().mockResolvedValue({ messages: ['SUBC'] }),
+  startManage: vi.fn().mockResolvedValue({ messages: ['SUBM'] }),
+};
 
 describe('MainMenuFlow', () => {
   const flow = new MainMenuFlow(
@@ -32,6 +37,7 @@ describe('MainMenuFlow', () => {
     anuncios as never,
     entity as never,
     procesos as never,
+    subscribe as never,
   );
   beforeEach(() => vi.clearAllMocks());
 
@@ -64,9 +70,15 @@ describe('MainMenuFlow', () => {
     expect(presenter.build).toHaveBeenCalled();
   });
 
-  it('"acf:subscribe" responde placeholder (alertas pronto) + menú', async () => {
+  it('"acf:subscribe" entra al flujo de crear alerta', async () => {
     const r = await flow.handle(makeCtx('acf:subscribe'));
-    expect(r.messages).toHaveLength(2);
-    expect(anuncios.start).not.toHaveBeenCalled();
+    expect(subscribe.startCreate).toHaveBeenCalledTimes(1);
+    expect(r.messages).toEqual(['SUBC']);
+  });
+
+  it('"subscriptions" entra a Mis alertas', async () => {
+    const r = await flow.handle(makeCtx('subscriptions'));
+    expect(subscribe.startManage).toHaveBeenCalledTimes(1);
+    expect(r.messages).toEqual(['SUBM']);
   });
 });

@@ -263,7 +263,20 @@ export class SearchAnunciosFlow implements Flow {
     // la tabla `entities`, así coincide con el nombre raspado del anuncio.
     if (data.entity) filters.entityNombre = data.entity.nombre;
 
-    const reset = { objeto: undefined, entity: undefined, entityCandidates: undefined };
+    // Contexto para "🔔 Avísame": el flujo de alerta hereda estos filtros sin
+    // re-preguntar (lo lee SubscribeFlow desde el estado). Ver docs/09 §5 flujo A.
+    const lastAcf = {
+      objeto: data.objeto,
+      entityRuc: data.entity?.ruc ?? null,
+      entityNombre: data.entity?.nombre ?? null,
+    };
+    // Resetea el wizard pero CONSERVA lastAcf para poder suscribirse a la búsqueda.
+    const reset = {
+      objeto: undefined,
+      entity: undefined,
+      entityCandidates: undefined,
+      lastAcf,
+    };
 
     let outcome;
     try {
