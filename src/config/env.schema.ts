@@ -26,6 +26,19 @@ export const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().default(''),
   TELEGRAM_WEBHOOK_SECRET: z.string().default(''),
 
+  // Dueños del bot (raíz de confianza, inmutable en runtime). Lista de ids
+  // numéricos de Telegram separados por coma. NUNCA en BD — ver docs/17 §1.
+  // Ej: OWNER_IDS="111111111,222222222".
+  OWNER_IDS: z
+    .string()
+    .default('')
+    .transform((v) =>
+      v
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => /^\d+$/.test(s)),
+    ),
+
   // URL pública del API para servir archivos efímeros (PDF de anuncios ACF) que
   // Meta descarga por link. Dev = túnel ngrok; prod = dominio de Railway/Contabo.
   // Si falta, el bot omite el PDF y muestra solo las 5 tarjetas.

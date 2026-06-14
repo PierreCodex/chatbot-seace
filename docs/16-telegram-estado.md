@@ -83,11 +83,15 @@
 - **"Buscando…" (queued ~30s)**: hoy es animation-ready, pero no se borra cuando el listener
   entrega el resultado async (es cross-proceso → requiere guardar el `message_id`).
 
-### Roles, planes y comandos de admin — diseño congelado en [17](./17-roles-permisos-alertas.md)
+### Roles, planes y comandos de admin — fases 1–5 ✅ ([17](./17-roles-permisos-alertas.md))
 - Roles owner (env) / seller (BD) + planes free/premium; **cobro manual (sin Telegram
-  Stars)**; comandos propios (`/activar` `/miplan` `/agregarvendedor` `/panico`…).
-- Schema nuevo: `BotSeller`, `AdminAuditLog`; router admin previo al de flujos; plan
-  efectivo + vencimientos (lazy + cron); auditoría inmutable.
+  Stars)**; comandos propios implementados (`/miplan` `/activar` `/extender` `/desactivar`
+  `/usuario` `/premium` `/porvencer` `/historial` + owner `/agregarvendedor`
+  `/quitarvendedor` `/vendedores` `/suspender` `/reactivar` `/panico` `/auditoria`).
+- Schema + migración aplicados; `RolesService`/`PlanService`/`AdminCommandsService`;
+  router admin previo al de flujos; auditoría transaccional; sigilo + rate-limit.
+- Pendiente (fases 6–9): `planPolicy`+`subscribe.flow`, cron de vencimiento,
+  `setMyCommands` por scope, confirmación inline en destructivos.
 
 ### Motor de alertas (F5) — el feature grande
 - `planPolicy` (Free 3 / Premium 10) + `subscribe.flow` (el botón "🔔 Avísame" hereda

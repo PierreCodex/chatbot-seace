@@ -217,22 +217,41 @@ inmutable.
 
 ## 11. Plan de implementación por fases
 
-> Construir en este orden. Cada fase deja algo probable de inmediato.
+> Estado al 2026-06-14: fases 1–5 ✅ implementadas y testeadas (22 tests).
 
-1. **Schema + env** — `BotSeller`, `AdminAuditLog`, enum de acciones; `OWNER_IDS` en
-   `.env` y `env.schema.ts`. Migración a Supabase.
-2. **Resolvedor de rol + plan efectivo** — autorización (owner/seller/none) y
-   `getEffectivePlan(user)` con vencimiento lazy.
-3. **Router de admin** (previo al de flujos) + parser de comandos + rate-limit Redis +
-   sigilo + auditoría transaccional.
-4. **Comandos de plan** (`/activar` `/extender` `/desactivar` `/usuario` `/miplan`) →
-   con esto ya activás Premium manualmente y probás cuotas.
-5. **Comandos owner** (`/agregarvendedor` `/quitarvendedor` `/vendedores`
+1. ✅ **Schema + env** — `BotSeller`, `AdminAuditLog`, enums `AdminActorRole`/`AdminAction`;
+   `OWNER_IDS` en `.env`/`env.schema.ts`. Migración `20260614130000_admin_roles_audit`
+   aplicada a Supabase.
+2. ✅ **Resolvedor de rol + plan efectivo** — `RolesService` (owner env / seller BD) y
+   `PlanService.getEffectivePlan` con vencimiento lazy + `maxAlertas`.
+3. ✅ **Router de admin** (`AdminCommandsService`, previo al de flujos en
+   `ConversationService`) + parser + rate-limit Redis + sigilo + auditoría transaccional
+   (en `PrismaAdminRepo`).
+4. ✅ **Comandos de plan** (`/activar` `/extender` `/desactivar` `/usuario` `/miplan`) +
+   notificación al usuario destino.
+5. ✅ **Comandos owner** (`/agregarvendedor` `/quitarvendedor` `/vendedores`
    `/suspender` `/reactivar` `/panico` `/auditoria` `/premium` `/porvencer`
    `/historial`).
-6. **`planPolicy`** (free 3 / premium 10) + integración en `subscribe.flow`.
-7. **Cron de vencimiento** (downgrade + notificación) + manejo de over-quota.
-8. **`setMyCommands` por scope** (menú admin solo para owner/sellers).
+6. ⏳ **`planPolicy`** (free 3 / premium 10) + integración en `subscribe.flow`.
+7. ⏳ **Cron de vencimiento** (`AdminRepo.expireOverdue` ya existe; falta el agendado +
+   notificación) + manejo de over-quota.
+8. ⏳ **`setMyCommands` por scope** (menú admin solo para owner/sellers).
+9. ⏳ **Confirmación inline** en destructivos (`/quitarvendedor` `/panico` `/suspender`).
 
 > El **motor de alertas** (HitDetection + dispatch + subscribe.flow) se apoya en las
 > fases 2 y 6. Ver [16 · pendiente](./16-telegram-estado.md).
+
+### Mapa de archivos (fases 1–5)
+```
+prisma/schema.prisma                              # BotSeller, AdminAuditLog, enums
+prisma/migrations/20260614130000_admin_roles_audit/
+src/config/env.schema.ts                          # OWNER_IDS
+src/ports/persistence/admin.repo.port.ts          # ADMIN_REPO + AdminRepoPort
+src/adapters/persistence/prisma/admin.repo.ts     # PrismaAdminRepo (transaccional)
+src/modules/admin/
+├── roles.service.ts                              # owner/seller
+├── plan.service.ts                               # plan efectivo + cuotas
+├── admin-commands.service.ts                     # router + comandos
+└── admin.module.ts
+src/modules/bot/conversation.service.ts           # admin.handle() antes del flujo
+```

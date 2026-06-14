@@ -4,6 +4,7 @@ import type { UserChannel } from '@prisma/client';
 import type { Env } from '../../config/env.schema';
 import type { InboundMessage, MessagingPort, OutboundMessage } from '../../ports/messaging.port';
 import { MESSAGING_PORT } from '../../ports/messaging.port';
+import { AdminCommandsService } from '../admin/admin-commands.service';
 import { ConversationStore } from './conversation.store';
 import { FlowRegistry } from './flow.registry';
 import type { ConversationState, FlowContext, FlowResult } from './types';
@@ -24,6 +25,7 @@ export class ConversationService {
     private readonly store: ConversationStore,
     private readonly registry: FlowRegistry,
     private readonly waUsers: WaUsersService,
+    private readonly admin: AdminCommandsService,
     @Inject(MESSAGING_PORT) private readonly messaging: MessagingPort,
     config: ConfigService<Env, true>,
   ) {
@@ -51,6 +53,20 @@ export class ConversationService {
 
     // Determine input text
     let input = inbound.interactiveReplyId ?? inbound.text ?? '';
+
+    // Router de administración (roles/planes), ANTES del router de flujos: si el
+    // input es un comando admin/`/miplan`, lo maneja aquí y corta. Devuelve `[]`
+    // en modo sigilo (no-autorizado tipeando un comando admin → sin respuesta).
+    // Ver docs/17.
+    const adminMsgs = await this.admin.handle({
+      senderId: inbound.phoneNumber,
+      phoneNumberId: inbound.phoneNumberId,
+      input,
+    });
+    if (adminMsgs !== null) {
+      for (const m of adminMsgs) await this.send(m);
+      return;
+    }
 
     // Comando de escape GLOBAL: desde cualquier flujo/paso, "menú", "inicio",
     // "salir", "cancelar", "/start"… reinician al menú principal. Da la "salida

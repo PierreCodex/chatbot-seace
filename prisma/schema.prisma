@@ -84,6 +84,28 @@ enum FileOrigin {
   ficha_pdf
 }
 
+// Quién ejecuta una acción administrativa. `system` = procesos automáticos
+// (ej. cron de vencimiento). Ver docs/17.
+enum AdminActorRole {
+  owner
+  seller
+  system
+}
+
+// Acciones auditables del sistema de planes/permisos. Append-only. Ver docs/17 §9.
+enum AdminAction {
+  plan_activado
+  plan_extendido
+  plan_desactivado
+  auto_vencido
+  usuario_suspendido
+  usuario_reactivado
+  seller_agregado
+  seller_revocado
+  seller_revocado_emergencia
+  intento_no_autorizado
+}
+
 // =====================================================================
 // CATÁLOGOS
 // =====================================================================
@@ -231,6 +253,50 @@ model WaUser {
   @@unique([channel, channelUserId])
   @@index([phoneE164])
   @@map("wa_users")
+}
+
+// =====================================================================
+// ADMINISTRACIÓN / PERMISOS  (ver docs/17)
+// =====================================================================
+
+// Staff con rol `seller`: pueden activar/extender/desactivar el plan de usuarios
+// comunes. El `owner` NO vive aquí (está en `.env` OWNER_IDS, raíz de confianza
+// inmutable). Se `active=false` en vez de borrar para preservar la auditoría.
+model BotSeller {
+  id             String    @id @default(uuid()) @db.Uuid
+  // Identificación por id numérico de Telegram (string, como WaUser.channelUserId).
+  telegramId     String    @unique @map("telegram_id")
+  active         Boolean   @default(true)
+  note           String?
+  addedByOwnerId String    @map("added_by_owner_id")
+  revokedBy      String?   @map("revoked_by")
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt      @map("updated_at") @db.Timestamptz
+
+  @@index([active])
+  @@map("bot_sellers")
+}
+
+// Registro append-only e inmutable de toda acción administrativa con efecto.
+// `actorId`/`targetUserId` son ids de Telegram (string), no FKs: es un log, no
+// integridad referencial (el actor puede ser `system`). `before`/`after` guardan
+// snapshots (plan, vencimiento) para reconstruir el cambio. Ver docs/17 §9.
+model AdminAuditLog {
+  id           String         @id @default(uuid()) @db.Uuid
+  actorId      String         @map("actor_id")
+  actorRole    AdminActorRole @map("actor_role")
+  action       AdminAction
+  targetUserId String?        @map("target_user_id")
+  before       Json?
+  after        Json?
+  note         String?
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([targetUserId, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("admin_audit_log")
 }
 
 // =====================================================================

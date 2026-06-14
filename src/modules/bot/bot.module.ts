@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MessagingModule } from '../../adapters/messaging/messaging.module';
+import { AdminModule } from '../admin/admin.module';
 import { SearchModule } from '../search/search.module';
 import { ConversationService } from './conversation.service';
 import { ConversationStore } from './conversation.store';
@@ -15,7 +16,7 @@ import { WaUsersService } from './wa-users.service';
 import { WebhookController } from './webhook.controller';
 
 @Module({
-  imports: [MessagingModule.register(), SearchModule],
+  imports: [MessagingModule.register(), SearchModule, AdminModule],
   // Ambos controllers se registran; solo recibe tráfico el del canal activo
   // (cada plataforma llama únicamente a su propia ruta).
   controllers: [WebhookController, TelegramWebhookController],
