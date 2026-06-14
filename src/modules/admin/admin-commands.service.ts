@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { AdminAuditLog } from '@prisma/client';
+import { tgEmoji } from '../../common/telegram-emoji';
 import { CACHE_PORT, type CachePort } from '../../ports/cache.port';
 import { ADMIN_REPO, type AdminRepoPort } from '../../ports/persistence/admin.repo.port';
 import type { ButtonOption, OutboundMessage } from '../../ports/messaging.port';
@@ -100,7 +101,7 @@ export class AdminCommandsService {
     }
 
     try {
-      if (cmd === 'cmds') return { messages: [this.renderCmds(ctx, role, 0)] };
+      if (cmd === 'cmds') return { messages: [this.renderCmdsHome(ctx, role)] };
       return { messages: await this.dispatch(cmd, args, ctx, role) };
     } catch (err) {
       this.logger.error(`admin ${cmd} falló: ${(err as Error).message}`);
@@ -112,13 +113,21 @@ export class AdminCommandsService {
     }
   }
 
-  /** Maneja los callbacks de la paginación de /cmds (re-valida el rol). */
+  /** Callbacks de /cmds (re-valida el rol): home, categoría+página, cerrar. */
   private async cmdsNav(ctx: AdminContext): Promise<AdminHandleResult> {
     const role = await this.roles.roleOf(ctx.senderId);
     if (!role) return { messages: [] };
     if (ctx.input === 'cmds:exit') return { messages: [], navigation: 'delete' };
-    const m = /^cmds:p:(\d+)$/.exec(ctx.input);
-    if (m) return { messages: [this.renderCmds(ctx, role, Number(m[1]))], navigation: 'edit' };
+    if (ctx.input === 'cmds:home') {
+      return { messages: [this.renderCmdsHome(ctx, role)], navigation: 'edit' };
+    }
+    const m = /^cmds:c:([a-z]+):(\d+)$/.exec(ctx.input);
+    if (m) {
+      return {
+        messages: [this.renderCmdsCategory(ctx, role, m[1], Number(m[2]))],
+        navigation: 'edit',
+      };
+    }
     return { messages: [] };
   }
 
@@ -208,29 +217,72 @@ export class AdminCommandsService {
 
   // ── comandos de administración (owner + seller) ──
 
-  /**
-   * Renderiza una página de /cmds como tarjeta (blockquote) con paginación. Las
-   * páginas dependen del rol (owner 4, seller 2). `page` se clampa al rango.
-   */
-  private renderCmds(ctx: AdminContext, role: AdminRole, page: number): OutboundMessage {
-    const pages = cmdsPages(role);
-    const total = pages.length;
-    const idx = Math.max(0, Math.min(page, total - 1));
-    const pg = pages[idx];
+  /** Vista inicial de /cmds: stats + selección de categoría (botones de colores). */
+  private renderCmdsHome(ctx: AdminContext, role: AdminRole): OutboundMessage {
+    const cats = catsFor(role);
+    const totalCmds = cats.reduce((n, c) => n + c.cmds.length, 0);
     const body =
-      `🛠️ <b>Comandos de administración</b>  ·  <code>${idx + 1}/${total}</code>\n` +
-      `Tu rol: <b>${role}</b>\n` +
-      `<blockquote><b>${pg.title}</b>\n${pg.lines.join('\n')}</blockquote>`;
+      `${tgEmoji('search')} <b>DataSeace · Comandos</b>\n` +
+      `${CMDS_SEP}\n` +
+      `📂 <b>Categorías:</b> ${cats.length}   ·   🔧 <b>Comandos:</b> ${totalCmds}\n` +
+      `🛡️ Tu rol: <b>${role}</b>\n\n` +
+      `👇 <b>Elegí una categoría:</b>`;
+
+    const catBtns: ButtonOption[] = cats.map((c) => ({
+      id: `cmds:c:${c.key}:0`,
+      title: `${c.icon} ${c.title}`,
+      style: 'primary',
+    }));
+    const layout: number[] = [];
+    for (let i = 0; i < catBtns.length; i += 2) layout.push(Math.min(2, catBtns.length - i));
+    layout.push(1); // fila del Cerrar
+    return {
+      kind: 'buttons',
+      to: ctx.senderId,
+      phoneNumberId: ctx.phoneNumberId,
+      html: true,
+      body,
+      buttons: [...catBtns, { id: 'cmds:exit', title: '✖ Cerrar', style: 'danger' }],
+      buttonLayout: layout,
+    };
+  }
+
+  /** Vista de categoría: cards (una por comando) con paginación + volver/cerrar. */
+  private renderCmdsCategory(
+    ctx: AdminContext,
+    role: AdminRole,
+    catKey: string,
+    page: number,
+  ): OutboundMessage {
+    const cats = catsFor(role);
+    const cat = cats.find((c) => c.key === catKey);
+    if (!cat) return this.renderCmdsHome(ctx, role); // defensa: categoría inválida/owner-only
+    const pages = chunk(cat.cmds, CMDS_PER_PAGE);
+    const idx = Math.max(0, Math.min(page, pages.length - 1));
+    const cards = pages[idx]
+      .map(
+        (c) =>
+          `<blockquote>🔧 <b>Comando:</b> <code>${c.cmd}</code>\n` +
+          `📝 <b>Uso:</b> ${c.args ? `<code>${c.args}</code>` : '<i>—</i>'}\n` +
+          `💬 <b>Qué hace:</b> <i>${c.desc}</i></blockquote>`,
+      )
+      .join('\n');
+    const body =
+      `${tgEmoji('search')} <b>DataSeace · Comandos</b>\n` +
+      `${cat.icon} <b>${cat.title}</b>   ·   <code>${idx + 1}/${pages.length}</code>\n\n` +
+      cards;
 
     const nav: ButtonOption[] = [];
-    if (idx > 0) nav.push({ id: `cmds:p:${idx - 1}`, title: '« Anterior', style: 'primary' });
-    if (idx < total - 1) {
-      nav.push({ id: `cmds:p:${idx + 1}`, title: 'Siguiente »', style: 'primary' });
+    if (idx > 0) {
+      nav.push({ id: `cmds:c:${cat.key}:${idx - 1}`, title: '« Anterior', style: 'primary' });
+    }
+    if (idx < pages.length - 1) {
+      nav.push({ id: `cmds:c:${cat.key}:${idx + 1}`, title: 'Siguiente »', style: 'primary' });
     }
     const buttons: ButtonOption[] = [
       ...nav,
-      { id: 'menu:main', title: 'Menú', style: 'success' },
-      { id: 'cmds:exit', title: 'Cerrar', style: 'danger' },
+      { id: 'cmds:home', title: '◀ Categorías', style: 'success' },
+      { id: 'cmds:exit', title: '✖ Cerrar', style: 'danger' },
     ];
     return {
       kind: 'buttons',
@@ -582,50 +634,82 @@ export function parseCommand(input: string): { cmd: string; args: string[] } | n
   return { cmd, args: parts.slice(1) };
 }
 
-/** Páginas de /cmds según rol: owner ve 4 (planes, consultas, sellers, moderación),
- * seller ve 2 (planes, consultas). */
-function cmdsPages(role: AdminRole): { title: string; lines: string[] }[] {
-  const planes = {
-    title: '📦 Planes',
-    lines: [
-      cmdLine('/activar', '&lt;id&gt; &lt;días|permanente&gt; [nota]', 'dar Premium'),
-      cmdLine('/extender', '&lt;id&gt; &lt;días&gt; [nota]', 'sumar días'),
-      cmdLine('/desactivar', '&lt;id&gt; [nota]', 'volver a Free'),
-    ],
-  };
-  const consultas = {
-    title: '📊 Consultas',
-    lines: [
-      cmdLine('/usuario', '&lt;id&gt;', 'ver ficha'),
-      cmdLine('/premium', '', 'listar Premium activos'),
-      cmdLine('/porvencer', '[días]', 'próximos vencimientos'),
-      cmdLine('/historial', '&lt;id&gt;', 'auditoría del usuario'),
-    ],
-  };
-  if (role !== 'owner') return [planes, consultas];
-  const sellers = {
-    title: '👑 Sellers',
-    lines: [
-      cmdLine('/agregarvendedor', '&lt;id&gt; [nota]', 'alta de seller'),
-      cmdLine('/quitarvendedor', '&lt;id&gt;', 'baja de seller'),
-      cmdLine('/vendedores', '', 'listar sellers'),
-    ],
-  };
-  const moderacion = {
-    title: '🛡️ Moderación',
-    lines: [
-      cmdLine('/suspender', '&lt;id&gt; [nota]', 'bloquear usuario'),
-      cmdLine('/reactivar', '&lt;id&gt;', 'quitar bloqueo'),
-      cmdLine('/panico', '&lt;seller_id&gt;', 'revocar seller (emergencia)'),
-      cmdLine('/auditoria', '', 'acciones recientes'),
-    ],
-  };
-  return [planes, consultas, sellers, moderacion];
+// ── /cmds: catálogo de categorías (menú de 2 niveles) ──
+
+const CMDS_PER_PAGE = 3;
+const CMDS_SEP = '━━━━━━━━━━━━━━';
+
+interface CmdEntry {
+  cmd: string;
+  args: string;
+  desc: string;
+}
+interface CmdCategory {
+  key: string;
+  icon: string;
+  title: string;
+  ownerOnly: boolean;
+  cmds: CmdEntry[];
 }
 
-function cmdLine(cmd: string, args: string, desc: string): string {
-  const head = args ? `<code>${cmd} ${args}</code>` : `<code>${cmd}</code>`;
-  return `• ${head}\n  <i>${desc}</i>`;
+const CMD_CATEGORIES: CmdCategory[] = [
+  {
+    key: 'planes',
+    icon: '💼',
+    title: 'Planes',
+    ownerOnly: false,
+    cmds: [
+      { cmd: '/activar', args: '&lt;id&gt; &lt;días|permanente&gt; [nota]', desc: 'dar Premium' },
+      { cmd: '/extender', args: '&lt;id&gt; &lt;días&gt; [nota]', desc: 'sumar días' },
+      { cmd: '/desactivar', args: '&lt;id&gt; [nota]', desc: 'volver a Free' },
+    ],
+  },
+  {
+    key: 'consultas',
+    icon: '📊',
+    title: 'Consultas',
+    ownerOnly: false,
+    cmds: [
+      { cmd: '/usuario', args: '&lt;id&gt;', desc: 'ver ficha del usuario' },
+      { cmd: '/premium', args: '', desc: 'listar Premium activos' },
+      { cmd: '/porvencer', args: '[días]', desc: 'próximos vencimientos' },
+      { cmd: '/historial', args: '&lt;id&gt;', desc: 'auditoría del usuario' },
+    ],
+  },
+  {
+    key: 'sellers',
+    icon: '👑',
+    title: 'Sellers',
+    ownerOnly: true,
+    cmds: [
+      { cmd: '/agregarvendedor', args: '&lt;id&gt; [nota]', desc: 'alta de seller' },
+      { cmd: '/quitarvendedor', args: '&lt;id&gt;', desc: 'baja de seller' },
+      { cmd: '/vendedores', args: '', desc: 'listar sellers' },
+    ],
+  },
+  {
+    key: 'moderacion',
+    icon: '🛡️',
+    title: 'Moderación',
+    ownerOnly: true,
+    cmds: [
+      { cmd: '/suspender', args: '&lt;id&gt; [nota]', desc: 'bloquear usuario' },
+      { cmd: '/reactivar', args: '&lt;id&gt;', desc: 'quitar bloqueo' },
+      { cmd: '/panico', args: '&lt;seller_id&gt;', desc: 'revocar seller (emergencia)' },
+      { cmd: '/auditoria', args: '', desc: 'acciones recientes' },
+    ],
+  },
+];
+
+/** Categorías visibles para el rol (el owner ve todas; el seller, las no owner-only). */
+function catsFor(role: AdminRole): CmdCategory[] {
+  return role === 'owner' ? CMD_CATEGORIES : CMD_CATEGORIES.filter((c) => !c.ownerOnly);
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
 }
 
 function parseId(raw: string | undefined): string | null {

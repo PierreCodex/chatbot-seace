@@ -100,32 +100,62 @@ describe('AdminCommandsService.handle', () => {
     expect(body).toContain('/miplan');
   });
 
-  it('/cmds del owner: página 1/4 (Planes) con botón Siguiente', async () => {
+  it('/cmds del owner: vista inicial con las 4 categorías + Cerrar', async () => {
     const r = await svc.handle(ctx('/cmds', '1'));
     const m = r!.messages[0];
     expect(m.kind).toBe('buttons');
     if (m.kind === 'buttons') {
-      expect((m as { body: string }).body).toContain('1/4');
-      expect((m as { body: string }).body).toMatch(/Planes/i);
-      expect(m.buttons.map((b) => b.id)).toContain('cmds:p:1');
-      expect(m.buttons.map((b) => b.id)).toContain('cmds:exit');
+      expect((m as { body: string }).body).toMatch(/categoría/i);
+      const ids = m.buttons.map((b) => b.id);
+      expect(ids).toEqual([
+        'cmds:c:planes:0',
+        'cmds:c:consultas:0',
+        'cmds:c:sellers:0',
+        'cmds:c:moderacion:0',
+        'cmds:exit',
+      ]);
     }
   });
 
-  it('/cmds del owner navega a la página de Sellers (cmds:p:2) editando in-place', async () => {
-    const r = await svc.handle(ctx('cmds:p:2', '1'));
+  it('owner abre la categoría Sellers (cards) editando in-place', async () => {
+    const r = await svc.handle(ctx('cmds:c:sellers:0', '1'));
     expect(r!.navigation).toBe('edit');
     const body = (r!.messages[0] as { body: string }).body;
     expect(body).toMatch(/Sellers/i);
-    expect(body).toContain('3/4');
+    expect(body).toContain('/agregarvendedor');
   });
 
-  it('/cmds del seller solo tiene 2 páginas (sin Sellers/Moderación)', async () => {
+  it('categoría Consultas pagina (4 comandos → botón Siguiente)', async () => {
+    const r = await svc.handle(ctx('cmds:c:consultas:0', '1'));
+    const m = r!.messages[0];
+    if (m.kind === 'buttons') {
+      expect((m as { body: string }).body).toContain('1/2');
+      expect(m.buttons.map((b) => b.id)).toContain('cmds:c:consultas:1');
+    }
+  });
+
+  it('/cmds del seller solo ofrece 2 categorías (sin Sellers/Moderación)', async () => {
     repo.findActiveSeller.mockResolvedValue({ telegramId: '500', active: true });
     const r = await svc.handle(ctx('/cmds', '500'));
+    const m = r!.messages[0];
+    if (m.kind === 'buttons') {
+      const ids = m.buttons.map((b) => b.id);
+      expect(ids).toEqual(['cmds:c:planes:0', 'cmds:c:consultas:0', 'cmds:exit']);
+    }
+  });
+
+  it('seller que fuerza una categoría owner-only cae a la vista inicial', async () => {
+    repo.findActiveSeller.mockResolvedValue({ telegramId: '500', active: true });
+    const r = await svc.handle(ctx('cmds:c:moderacion:0', '500'));
     const body = (r!.messages[0] as { body: string }).body;
-    expect(body).toContain('1/2');
-    expect(body).not.toMatch(/Moderación/i);
+    expect(body).toMatch(/categoría/i); // home, no la card de moderación
+    expect(body).not.toContain('/panico');
+  });
+
+  it('cmds:home vuelve a la vista inicial (edit)', async () => {
+    const r = await svc.handle(ctx('cmds:home', '1'));
+    expect(r!.navigation).toBe('edit');
+    expect((r!.messages[0] as { body: string }).body).toMatch(/categoría/i);
   });
 
   it('botón Cerrar (cmds:exit) borra el mensaje', async () => {

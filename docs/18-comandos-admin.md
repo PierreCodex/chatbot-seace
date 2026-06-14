@@ -58,27 +58,28 @@ Es el comando que usa el cliente para **pasarte su id** cuando te paga.
 ## Ayuda de administración
 
 ### `/cmds`
-Lista **los comandos de administración** en una **tarjeta paginada** con botones
-**« Anterior · Siguiente » · Menú · Cerrar**. Las páginas dependen del rol:
+**Menú de 2 niveles**, in-place (los botones reescriben el mismo mensaje):
 
-- **owner** → 4 páginas: `📦 Planes` · `📊 Consultas` · `👑 Sellers` · `🛡️ Moderación`
-- **seller** → 2 páginas: `📦 Planes` · `📊 Consultas`
+**Nivel 1 — categorías:** stats + botones de categoría (color) + Cerrar.
+- **owner** → 4 categorías: `💼 Planes` · `📊 Consultas` · `👑 Sellers` · `🛡️ Moderación`
+- **seller** → 2 categorías: `💼 Planes` · `📊 Consultas`
 
-La navegación es **in-place** (los botones reescriben el mismo mensaje; *Cerrar* lo borra).
-Es el "índice" para vos y tus sellers — los usuarios comunes no lo ven (sigilo). Para
-ellos está `/ayuda`.
+**Nivel 2 — categoría:** **una card por comando** (Comando / Uso / Qué hace), con
+paginación (`« Anterior` · `Siguiente »`) si la categoría tiene más de 3 comandos, más
+`◀ Categorías` (volver al nivel 1) y `✖ Cerrar` (borra el mensaje).
+
+Los usuarios comunes no lo ven (sigilo); para ellos está `/ayuda`.
 
 ```
-🛠️ Comandos de administración  ·  1/4
-Tu rol: owner
-▌ 📦 Planes
-▌ • /activar <id> <días|permanente> [nota]
-▌     dar Premium
-▌ • /extender <id> <días> [nota]
-▌     sumar días
-▌ ...
-[ « Anterior ] [ Siguiente » ]
-[ Menú ]       [ Cerrar ]
+Nivel 1                              Nivel 2 (categoría Planes)
+🔎 DataSeace · Comandos             🔎 DataSeace · Comandos
+━━━━━━━━━━━                          💼 Planes · 1/1
+📂 Categorías: 4 · 🔧 Comandos: 14   ▌ 🔧 Comando: /activar
+🛡️ Tu rol: owner                     ▌ 📝 Uso: <id> <días|permanente> [nota]
+👇 Elegí una categoría:              ▌ 💬 Qué hace: dar Premium
+[ 💼 Planes ] [ 📊 Consultas ]       ▌ ...
+[ 👑 Sellers ][ 🛡️ Moderación ]      [ ◀ Categorías ] [ ✖ Cerrar ]
+[ ✖ Cerrar ]
 ```
 
 ---
