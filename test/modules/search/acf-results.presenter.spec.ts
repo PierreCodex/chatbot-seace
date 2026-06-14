@@ -28,8 +28,13 @@ const present = (processes: StoredProcess[], totalFound: number, pdfUrl?: string
   pdfUrl,
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function presenter(channel: 'whatsapp' | 'telegram' = 'whatsapp'): AcfResultsPresenter {
+  return new AcfResultsPresenter({ get: () => channel } as any);
+}
+
 describe('AcfResultsPresenter', () => {
-  const p = new AcfResultsPresenter();
+  const p = presenter('whatsapp');
 
   it('0 resultados → texto claro + botones de salida (nueva búsqueda / menú)', () => {
     const msgs = p.build(present([], 0));
@@ -114,5 +119,33 @@ describe('AcfResultsPresenter', () => {
       expect(card.body).toContain('300 días');
       expect(card.body).not.toContain('Ver ficha');
     }
+  });
+
+  describe('Telegram', () => {
+    const tg = presenter('telegram');
+
+    it('header con html + efecto animado; tarjetas con blockquote expandable + monospace', () => {
+      const msgs = tg.build(present([makeAcf()], 1));
+      const header = msgs[0];
+      expect(header.kind).toBe('text');
+      if (header.kind === 'text') {
+        expect(header.html).toBe(true);
+        expect(header.effectId).toBeTruthy();
+      }
+      const card = msgs[1];
+      if (card.kind === 'text') {
+        expect(card.body).toContain('<blockquote expandable>');
+        expect(card.body).toContain('<code>300 días</code>');
+        expect(card.body).toContain('PUQUINA');
+      }
+    });
+
+    it('footer con botones de colores (primary/success)', () => {
+      const footer = tg.build(present([makeAcf()], 1)).at(-1)!;
+      if (footer.kind === 'buttons') {
+        expect(footer.buttons.find((b) => b.id === 'acf:subscribe')?.style).toBe('primary');
+        expect(footer.buttons.find((b) => b.id === 'menu:main')?.style).toBe('success');
+      }
+    });
   });
 });

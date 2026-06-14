@@ -1,7 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { tgDivider, tgEmoji, TG_EMOJI } from '../../../common/telegram-emoji';
+import type { Env } from '../../../config/env.schema';
 import type { EntityLookupMatch } from '../../../ports/entity-lookup.port';
 import { FILES_PORT, type FilesPort } from '../../../ports/files.port';
-import type { OutboundMessage } from '../../../ports/messaging.port';
+import type { ButtonOption, OutboundMessage } from '../../../ports/messaging.port';
 import type { ObjetoContratacion, SearchFilters } from '../../../ports/persistence/types';
 import { EntitySearchService } from '../../search/entity-search.service';
 import { SearchFacade } from '../../search/search.facade';
@@ -12,7 +15,7 @@ import type { Flow, FlowContext, FlowResult } from '../types';
 const FLOW_ID = 'search-anuncios';
 const MAX_ENTITY_CHOICES = 10;
 
-type Step = 'awaiting-objeto' | 'menu' | 'soft-nudge' | 'awaiting-entity' | 'entity-disambiguation';
+type Step = 'awaiting-objeto' | 'menu' | 'awaiting-entity' | 'entity-disambiguation';
 
 interface FlowData {
   objeto?: ObjetoContratacion;
@@ -27,27 +30,40 @@ const OBJETO_LABELS: Record<ObjetoContratacion, string> = {
   consultoria_obra: 'Consultoría de Obra',
 };
 
+const OBJETO_EMOJI: Record<ObjetoContratacion, string> = {
+  obra: '🏗️',
+  bien: '📦',
+  servicio: '🛠️',
+  consultoria_obra: '📐',
+};
+
 /**
- * Búsqueda de Anuncios de Contratación Futura (ACF) — variante A + empujón suave.
+ * Búsqueda de Anuncios de Contratación Futura (ACF) — variante A.
  * Spec: docs/06-whatsapp-ux.md §10.
  *
  *   awaiting-objeto ──(objeto obligatorio)──▶ menu
- *   menu ──[Buscar ahora]── sin entidad ──▶ soft-nudge ──[Buscar todos]──▶ search
- *        └──[Buscar ahora]── con entidad ─────────────────────────────────▶ search
+ *   menu ──[Buscar ahora]── (con o sin entidad) ──▶ search
  *        └──[Filtrar entidad]──▶ awaiting-entity ──▶ (disambiguation) ──▶ menu
- *   soft-nudge ──[Filtrar entidad]──▶ awaiting-entity
+ *
+ * El menú ya ofrece "Buscar ahora" vs "Filtrar por entidad", así que buscar es
+ * un solo toque (sin pantalla de confirmación intermedia).
  */
 @Injectable()
 export class SearchAnunciosFlow implements Flow {
   readonly id = FLOW_ID;
   private readonly logger = new Logger(SearchAnunciosFlow.name);
 
+  private readonly isTelegram: boolean;
+
   constructor(
     private readonly entitySearch: EntitySearchService,
     private readonly searchFacade: SearchFacade,
     private readonly resultsPresenter: AcfResultsPresenter,
     @Inject(FILES_PORT) private readonly files: FilesPort,
-  ) {}
+    config: ConfigService<Env, true>,
+  ) {
+    this.isTelegram = config.get('MESSAGING_CHANNEL', { infer: true }) === 'telegram';
+  }
 
   async handle(ctx: FlowContext): Promise<FlowResult> {
     const data = (ctx.state.data ?? {}) as FlowData;
@@ -56,8 +72,6 @@ export class SearchAnunciosFlow implements Flow {
         return this.onObjeto(ctx, data);
       case 'menu':
         return this.onMenu(ctx, data);
-      case 'soft-nudge':
-        return this.onNudge(ctx, data);
       case 'awaiting-entity':
         return this.onEntityText(ctx, data);
       case 'entity-disambiguation':
@@ -104,6 +118,7 @@ export class SearchAnunciosFlow implements Flow {
     const objeto = raw as ObjetoContratacion;
     return {
       messages: [this.menuMessage(ctx, { ...data, objeto })],
+      navigation: 'edit',
       nextStep: 'menu',
       dataPatch: { objeto },
     };
@@ -112,18 +127,21 @@ export class SearchAnunciosFlow implements Flow {
   private async onMenu(ctx: FlowContext, data: FlowData): Promise<FlowResult> {
     const choice = parseId(ctx.input, 'acf');
     if (choice === 'buscar') {
-      // Empujón suave: si no hay filtro de alcance (entidad), confirmar.
-      if (!data.entity) {
-        return { messages: [this.nudgeMessage(ctx, data)], nextStep: 'soft-nudge' };
-      }
+      // El menú ya ofrece "Buscar ahora" vs "Filtrar por entidad": buscar es
+      // directo, con o sin entidad (sin confirmación intermedia).
       return this.runSearch(ctx, data);
     }
     if (choice === 'entidad') {
-      return { messages: [this.askEntityMessage(ctx)], nextStep: 'awaiting-entity' };
+      return {
+        messages: [this.askEntityMessage(ctx)],
+        navigation: 'edit',
+        nextStep: 'awaiting-entity',
+      };
     }
     if (choice === 'quitar') {
       return {
         messages: [this.menuMessage(ctx, { ...data, entity: undefined })],
+        navigation: 'edit',
         nextStep: 'menu',
         dataPatch: { entity: undefined },
       };
@@ -132,22 +150,12 @@ export class SearchAnunciosFlow implements Flow {
       // "Otro objeto": re-pide el objeto conservando la entidad fijada.
       return {
         messages: [this.objetoListMessage(ctx)],
+        navigation: 'edit',
         nextStep: 'awaiting-objeto',
         dataPatch: { objeto: undefined },
       };
     }
     return { messages: [this.menuMessage(ctx, data)] };
-  }
-
-  private async onNudge(ctx: FlowContext, data: FlowData): Promise<FlowResult> {
-    const choice = parseId(ctx.input, 'nudge');
-    if (choice === 'entidad') {
-      return { messages: [this.askEntityMessage(ctx)], nextStep: 'awaiting-entity' };
-    }
-    if (choice === 'all') {
-      return this.runSearch(ctx, data); // A2: objeto-only
-    }
-    return { messages: [this.nudgeMessage(ctx, data)] };
   }
 
   private async onEntityText(ctx: FlowContext, data: FlowData): Promise<FlowResult> {
@@ -162,7 +170,7 @@ export class SearchAnunciosFlow implements Flow {
         messages: [textMsg(ctx, 'Necesito al menos 2 letras. Escribe el nombre, sigla o RUC.')],
       };
     }
-    await ctx.notify(textMsg(ctx, '🔎 Consultando en SEACE…'));
+    await ctx.notify(this.consultandoMsg(ctx));
     let matches;
     try {
       matches = await this.entitySearch.search(q);
@@ -281,7 +289,11 @@ export class SearchAnunciosFlow implements Flow {
         // Dead-end con salidas: NO resetear ni salir del flujo. Mantener al
         // usuario en `menu` con botones que conservan objeto+entidad para
         // reajustar (otro objeto / otra entidad / menú).
-        return { messages: [this.emptyResultsMessage(ctx, data)], nextStep: 'menu' };
+        return {
+          messages: [this.emptyResultsMessage(ctx, data)],
+          navigation: 'edit',
+          nextStep: 'menu',
+        };
       }
       // >5 → adjuntar PDF con todos (si el backend puede hospedarlo).
       const pdfUrl =
@@ -297,6 +309,7 @@ export class SearchAnunciosFlow implements Flow {
       });
       return {
         messages,
+        navigation: 'replace',
         nextFlowId: 'main-menu',
         nextStep: 'awaiting-selection',
         dataPatch: reset,
@@ -305,23 +318,73 @@ export class SearchAnunciosFlow implements Flow {
 
     // queued: la entrega del resultado la hace SearchResultsListener.
     return {
-      messages: [
-        textMsg(
-          ctx,
-          '🔎 *Estoy buscando en el SEACE los anuncios más recientes para ti.*\n\n' +
-            'Esto puede tomar hasta ~30 segundos ⏳\n\n' +
-            'No necesitas hacer nada: te envío los resultados aquí mismo en cuanto estén listos. ✅',
-        ),
-      ],
+      messages: [this.buscandoMsg(ctx)],
+      navigation: 'replace',
       nextFlowId: 'main-menu',
       nextStep: 'awaiting-selection',
       dataPatch: reset,
     };
   }
 
+  /** "Consultando…" (búsqueda de entidad). Animation-ready en Telegram. */
+  private consultandoMsg(ctx: FlowContext): OutboundMessage {
+    if (this.isTelegram) {
+      return {
+        kind: 'text',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body: `${tgEmoji('loading')} <i>Consultando en SEACE…</i>`,
+      };
+    }
+    return textMsg(ctx, '🔎 Consultando en SEACE…');
+  }
+
+  /** "Buscando…" (~30s, queued). Animation-ready en Telegram. */
+  private buscandoMsg(ctx: FlowContext): OutboundMessage {
+    if (this.isTelegram) {
+      return {
+        kind: 'text',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body:
+          `${tgEmoji('loading')} <b>Estoy buscando en el SEACE los anuncios más recientes para ti.</b>\n\n` +
+          'Esto puede tomar hasta ~30 segundos.\n\n' +
+          'No necesitas hacer nada: te envío los resultados aquí mismo en cuanto estén listos. ✅',
+      };
+    }
+    return textMsg(
+      ctx,
+      '🔎 *Estoy buscando en el SEACE los anuncios más recientes para ti.*\n\n' +
+        'Esto puede tomar hasta ~30 segundos ⏳\n\n' +
+        'No necesitas hacer nada: te envío los resultados aquí mismo en cuanto estén listos. ✅',
+    );
+  }
+
   // ── builders ──
 
   private objetoListMessage(ctx: FlowContext): OutboundMessage {
+    if (this.isTelegram) {
+      return {
+        kind: 'buttons',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body:
+          '📅 <b>Ver anuncios futuros</b>\n' +
+          tgDivider(8) +
+          '\n¿Qué <b>tipo de contratación</b> te interesa?',
+        buttons: [
+          { id: 'objeto:obra', title: '🏗️ Obra', style: 'primary' },
+          { id: 'objeto:bien', title: '📦 Bien' },
+          { id: 'objeto:servicio', title: '🛠️ Servicio' },
+          { id: 'objeto:consultoria_obra', title: '📐 Consultoría de obra' },
+          { id: 'menu:main', title: 'Menú', style: 'success', iconCustomEmojiId: TG_EMOJI.back.id },
+        ],
+        buttonLayout: [2, 2, 1],
+      };
+    }
     const rows = (Object.entries(OBJETO_LABELS) as [ObjetoContratacion, string][]).map(
       ([id, title]) => ({ id: `objeto:${id}`, title }),
     );
@@ -337,17 +400,43 @@ export class SearchAnunciosFlow implements Flow {
 
   private menuMessage(ctx: FlowContext, data: FlowData): OutboundMessage {
     const objeto = data.objeto ? OBJETO_LABELS[data.objeto] : '—';
+    const objetoEmoji = data.objeto ? OBJETO_EMOJI[data.objeto] : '📅';
     const alcance = data.entity ? data.entity.nombre : 'Todas las entidades';
-    const rows: { id: string; title: string; description?: string }[] = [
-      { id: 'acf:buscar', title: '🔍 Buscar ahora' },
-      {
-        id: 'acf:entidad',
-        title: data.entity ? '🏢 Cambiar entidad' : '🏢 Filtrar por entidad',
-      },
-    ];
-    if (data.entity) {
-      rows.push({ id: 'acf:quitar', title: '🌎 Quitar entidad' });
+
+    const entidadBtn: ButtonOption = {
+      id: 'acf:entidad',
+      title: data.entity ? '🏢 Cambiar entidad' : '🏢 Filtrar por entidad',
+    };
+    const quitarBtn: ButtonOption = { id: 'acf:quitar', title: '🌎 Quitar entidad' };
+
+    if (this.isTelegram) {
+      const buttons: ButtonOption[] = [
+        { id: 'acf:buscar', title: '🔍 Buscar ahora', style: 'primary' },
+        entidadBtn,
+        ...(data.entity ? [quitarBtn] : []),
+        { id: 'menu:main', title: 'Menú', style: 'success', iconCustomEmojiId: TG_EMOJI.back.id },
+      ];
+      return {
+        kind: 'buttons',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body:
+          '✅ <b>Filtros listos</b>\n' +
+          tgDivider(8) +
+          `\n${objetoEmoji} <b>Objeto:</b> ${esc(objeto)}\n` +
+          `🏛️ <b>Entidad:</b> ${esc(alcance)}\n\n` +
+          '<i>¿Buscar así o quieres afinar?</i>',
+        buttons,
+        buttonLayout: data.entity ? [1, 2, 1] : [1, 1, 1],
+      };
     }
+
+    const rows: { id: string; title: string }[] = [
+      { id: 'acf:buscar', title: '🔍 Buscar ahora' },
+      entidadBtn,
+    ];
+    if (data.entity) rows.push(quitarBtn);
     return {
       kind: 'list',
       to: ctx.phoneNumber,
@@ -361,10 +450,27 @@ export class SearchAnunciosFlow implements Flow {
   /** Sin resultados: dead-end con salidas (conserva objeto+entidad en el estado). */
   private emptyResultsMessage(ctx: FlowContext, data: FlowData): OutboundMessage {
     const objeto = data.objeto ? OBJETO_LABELS[data.objeto] : 'ese objeto';
+    const entidadBtn: ButtonOption = {
+      id: 'acf:entidad',
+      title: data.entity ? '🏢 Otra entidad' : '🏢 Filtrar entidad',
+    };
+    if (this.isTelegram) {
+      const alcance = data.entity ? ` de <b>${esc(data.entity.nombre)}</b>` : '';
+      return {
+        kind: 'buttons',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body: `🔍 No encontré anuncios futuros de <b>${esc(objeto)}</b>${alcance}.\n\n<i>¿Qué quieres hacer?</i>`,
+        buttons: [
+          { id: 'acf:objeto', title: '📅 Otro objeto' },
+          entidadBtn,
+          { id: 'menu:main', title: 'Menú', style: 'success', iconCustomEmojiId: TG_EMOJI.back.id },
+        ],
+        buttonLayout: [2, 1],
+      };
+    }
     const alcance = data.entity ? ` de *${data.entity.nombre}*` : '';
-    const entidadBtn = data.entity
-      ? { id: 'acf:entidad', title: '🏢 Otra entidad' }
-      : { id: 'acf:entidad', title: '🏢 Filtrar entidad' };
     return {
       kind: 'buttons',
       to: ctx.phoneNumber,
@@ -378,32 +484,40 @@ export class SearchAnunciosFlow implements Flow {
     };
   }
 
-  private nudgeMessage(ctx: FlowContext, data: FlowData): OutboundMessage {
-    const objeto = data.objeto ? OBJETO_LABELS[data.objeto] : 'ese objeto';
-    return {
-      kind: 'buttons',
-      to: ctx.phoneNumber,
-      phoneNumberId: ctx.phoneNumberId,
-      body: `Vas a ver TODOS los anuncios futuros de *${objeto}* (suelen ser varios). ¿Buscar así o acotar por entidad?`,
-      buttons: [
-        { id: 'nudge:all', title: '🌎 Buscar todos' },
-        { id: 'nudge:entidad', title: '🏢 Filtrar entidad' },
-      ],
-    };
-  }
-
   private askEntityMessage(ctx: FlowContext): OutboundMessage {
+    if (this.isTelegram) {
+      return {
+        kind: 'text',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body:
+          '🏢 Escribe el <b>nombre, sigla o RUC</b> de la entidad.\n' +
+          '<i>Ej: GORE Piura · Muni Sullana · 20154265061</i>',
+      };
+    }
     return textMsg(
       ctx,
       'Escribe el nombre, sigla o RUC de la entidad. Ej: _GORE Piura_, _Muni Sullana_, _20154265061_.',
     );
   }
 
+  /** Desambiguación de entidad para FILTRAR (hay que elegir una). */
   private entityListMessage(
     ctx: FlowContext,
     total: number,
     top: EntityLookupMatch[],
   ): OutboundMessage {
+    if (this.isTelegram) {
+      return {
+        kind: 'buttons',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body: `${tgEmoji('search')} <b>${total} entidad${total === 1 ? '' : 'es'}</b> — elige una para filtrar:`,
+        buttons: top.map((m) => ({ id: `entity:${m.ruc}`, title: truncate(m.nombre, 40) })),
+      };
+    }
     return {
       kind: 'list',
       to: ctx.phoneNumber,
@@ -483,4 +597,9 @@ function isControlId(input: string): boolean {
 
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n - 1).trimEnd() + '…';
+}
+
+/** Escapa HTML para insertar texto dinámico en cuerpos con parse_mode HTML. */
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

@@ -36,6 +36,9 @@ export class ConversationService {
       return;
     }
 
+    // Indicador "escribiendo…" mientras el bot trabaja (Telegram; fire-and-forget).
+    this.messaging.sendChatAction?.(inbound.phoneNumber, 'typing').catch(() => {});
+
     // Upsert user por identidad de canal (teléfono en WA, chat_id en Telegram).
     const user = await this.waUsers.upsertByChannel(this.channel, inbound.phoneNumber);
 

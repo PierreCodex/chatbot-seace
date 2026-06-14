@@ -7,8 +7,15 @@ const facade = { search: vi.fn() };
 const presenter = { build: vi.fn() };
 
 function makeFlow(): SearchAnunciosFlow {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return new SearchAnunciosFlow(entitySearch as any, facade as any, presenter as any);
+  const files = { hostAcfPdf: vi.fn(), hostEntitiesPdf: vi.fn(), getPdf: vi.fn() };
+  const config = { get: () => 'whatsapp' };
+  return new SearchAnunciosFlow(
+    entitySearch as never,
+    facade as never,
+    presenter as never,
+    files as never,
+    config as never,
+  );
 }
 
 function ctx(step: string, input: string, data: Record<string, unknown> = {}): FlowContext {
@@ -70,20 +77,9 @@ describe('SearchAnunciosFlow (ACF, variante A + empujón suave)', () => {
     }
   });
 
-  it('Buscar ahora SIN entidad dispara el empujón suave (no busca aún)', async () => {
-    const r = await flow.handle(ctx('menu', 'acf:buscar', { objeto: 'obra' }));
-    expect(r.nextStep).toBe('soft-nudge');
-    const m = r.messages[0];
-    expect(m.kind).toBe('buttons');
-    if (m.kind === 'buttons') {
-      expect(m.buttons.map((b) => b.id)).toEqual(['nudge:all', 'nudge:entidad']);
-    }
-    expect(facade.search).not.toHaveBeenCalled();
-  });
-
-  it('empujón → "Buscar todos" ejecuta A2 (objeto-only) y encola', async () => {
+  it('Buscar ahora SIN entidad ejecuta A2 (objeto-only) directo, sin confirmación', async () => {
     facade.search.mockResolvedValue({ source: 'queued', jobId: 'j1' });
-    const r = await flow.handle(ctx('soft-nudge', 'nudge:all', { objeto: 'obra' }));
+    const r = await flow.handle(ctx('menu', 'acf:buscar', { objeto: 'obra' }));
     expect(facade.search).toHaveBeenCalledWith(
       expect.objectContaining({ tab: 'anuncios_futuros', filters: { objeto: 'obra' } }),
     );

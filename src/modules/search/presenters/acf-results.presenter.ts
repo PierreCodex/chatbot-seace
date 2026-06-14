@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { TG_EFFECT, TG_EMOJI, tgDivider, tgEmoji } from '../../../common/telegram-emoji';
+import type { Env } from '../../../config/env.schema';
 import type { OutboundMessage } from '../../../ports/messaging.port';
 import type { StoredProcess } from '../../../ports/persistence/processes.repo.port';
 
@@ -18,47 +21,72 @@ export interface AcfPresentContext {
 }
 
 /**
- * Presentación de resultados de Anuncios de Contratación Futura (ver
- * docs/06-whatsapp-ux.md §10.5/§10.6).
+ * Presentación de resultados de Anuncios de Contratación Futura. Channel-aware:
+ *  - **Telegram**: tarjetas con HTML (`<blockquote expandable>` colapsable, monospace,
+ *    separador animado) + efecto al entregar. Más "panel de datos".
+ *  - **WhatsApp**: tarjetas de texto plano (markdown) como antes.
  *
- *  - ≤5 resultados → tarjetas en el chat (descripción truncada). Sin ficha/bases.
- *  - >5 resultados → resumen + las 5 más recientes. Si backend provee `pdfUrl`,
- *    se adjunta además un documento PDF con todos (kind `document`).
+ * Reglas (docs/06 §10.5/§10.6): ≤5 → tarjetas; >5 → 5 + PDF con todos (kind document).
  */
 @Injectable()
 export class AcfResultsPresenter {
-  build(ctx: AcfPresentContext): OutboundMessage[] {
-    if (ctx.processes.length === 0) {
-      return [
-        text(
-          ctx,
-          'No hay anuncios futuros con esos filtros. Prueba con otro objeto o sin acotar por entidad.',
-        ),
-        {
-          kind: 'buttons',
-          to: ctx.phoneNumber,
-          phoneNumberId: ctx.phoneNumberId,
-          body: '¿Qué hago ahora?',
-          buttons: [
-            { id: 'acf:refine', title: '✏️ Nueva búsqueda' },
-            { id: 'menu:main', title: '🏁 Menú' },
-          ],
-        },
-      ];
-    }
+  private readonly isTelegram: boolean;
 
+  constructor(config: ConfigService<Env, true>) {
+    this.isTelegram = config.get('MESSAGING_CHANNEL', { infer: true }) === 'telegram';
+  }
+
+  build(ctx: AcfPresentContext): OutboundMessage[] {
+    if (ctx.processes.length === 0) return this.empty(ctx);
+    return this.isTelegram ? this.telegram(ctx) : this.whatsapp(ctx);
+  }
+
+  private empty(ctx: AcfPresentContext): OutboundMessage[] {
+    return [
+      text(
+        ctx,
+        'No hay anuncios futuros con esos filtros. Prueba con otro objeto o sin acotar por entidad.',
+      ),
+      {
+        kind: 'buttons',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        body: '¿Qué quieres hacer?',
+        buttons: [
+          { id: 'acf:refine', title: '✏️ Nueva búsqueda' },
+          { id: 'menu:main', title: '🏁 Menú' },
+        ],
+      },
+    ];
+  }
+
+  // ── Telegram ──
+  private telegram(ctx: AcfPresentContext): OutboundMessage[] {
     const top = ctx.processes.slice(0, MAX_CARDS);
     const hasPdf = ctx.totalFound > MAX_CARDS && !!ctx.pdfUrl;
-    const header =
+    const headerBody =
       ctx.totalFound <= MAX_CARDS
-        ? `Encontré ${ctx.totalFound} anuncio${ctx.totalFound === 1 ? '' : 's'} de contratación futura:`
+        ? `${tgEmoji('search')} <b>${ctx.totalFound} anuncio${ctx.totalFound === 1 ? '' : 's'} de contratación futura</b>`
         : hasPdf
-          ? `Encontré ${ctx.totalFound} anuncios futuros. Te muestro los ${top.length} más recientes ` +
-            'y te adjunto el PDF con todos 👇'
-          : `Encontré ${ctx.totalFound} anuncios futuros. Te muestro los ${top.length} más recientes ` +
-            '(pronto: PDF con todos):';
+          ? `${tgEmoji('search')} <b>${ctx.totalFound} anuncios futuros</b>\nTe muestro los ${top.length} más recientes y te adjunto el <b>PDF</b> con todos 👇`
+          : `${tgEmoji('search')} <b>${ctx.totalFound} anuncios futuros</b>\nTe muestro los ${top.length} más recientes:`;
 
-    const cards: OutboundMessage[] = top.map((p) => text(ctx, formatAcfCard(p)));
+    const header: OutboundMessage = {
+      kind: 'text',
+      to: ctx.phoneNumber,
+      phoneNumberId: ctx.phoneNumberId,
+      html: true,
+      effectId: TG_EFFECT.celebrate,
+      body: headerBody,
+    };
+
+    const cards: OutboundMessage[] = top.map((p) => ({
+      kind: 'text',
+      to: ctx.phoneNumber,
+      phoneNumberId: ctx.phoneNumberId,
+      html: true,
+      body: cardTelegram(p),
+    }));
 
     const pdf: OutboundMessage[] = hasPdf
       ? [
@@ -73,19 +101,66 @@ export class AcfResultsPresenter {
         ]
       : [];
 
-    const footer: OutboundMessage = {
+    return [header, ...cards, ...pdf, this.footer(ctx)];
+  }
+
+  // ── WhatsApp ──
+  private whatsapp(ctx: AcfPresentContext): OutboundMessage[] {
+    const top = ctx.processes.slice(0, MAX_CARDS);
+    const hasPdf = ctx.totalFound > MAX_CARDS && !!ctx.pdfUrl;
+    const header =
+      ctx.totalFound <= MAX_CARDS
+        ? `Encontré ${ctx.totalFound} anuncio${ctx.totalFound === 1 ? '' : 's'} de contratación futura:`
+        : hasPdf
+          ? `Encontré ${ctx.totalFound} anuncios futuros. Te muestro los ${top.length} más recientes ` +
+            'y te adjunto el PDF con todos 👇'
+          : `Encontré ${ctx.totalFound} anuncios futuros. Te muestro los ${top.length} más recientes ` +
+            '(pronto: PDF con todos):';
+
+    const cards: OutboundMessage[] = top.map((p) => text(ctx, formatAcfCard(p)));
+    const pdf: OutboundMessage[] = hasPdf
+      ? [
+          {
+            kind: 'document',
+            to: ctx.phoneNumber,
+            phoneNumberId: ctx.phoneNumberId,
+            link: ctx.pdfUrl as string,
+            filename: 'anuncios-futuros.pdf',
+            caption: `${ctx.totalFound} anuncios de contratación futura`,
+          },
+        ]
+      : [];
+
+    return [text(ctx, header), ...cards, ...pdf, this.footer(ctx)];
+  }
+
+  private footer(ctx: AcfPresentContext): OutboundMessage {
+    if (this.isTelegram) {
+      return {
+        kind: 'buttons',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body: '¿Te interesa alguno?',
+        buttons: [
+          { id: 'acf:subscribe', title: '🔔 Avísame', style: 'primary' },
+          { id: 'acf:refine', title: '✏️ Refinar' },
+          { id: 'menu:main', title: 'Menú', style: 'success', iconCustomEmojiId: TG_EMOJI.back.id },
+        ],
+        buttonLayout: [1, 2],
+      };
+    }
+    return {
       kind: 'buttons',
       to: ctx.phoneNumber,
       phoneNumberId: ctx.phoneNumberId,
-      body: '¿Qué hago ahora?',
+      body: '¿Te interesa alguno?',
       buttons: [
-        { id: 'acf:subscribe', title: '🔔 Suscribirme' },
+        { id: 'acf:subscribe', title: '🔔 Avísame' },
         { id: 'acf:refine', title: '✏️ Refinar' },
         { id: 'menu:main', title: 'Menú' },
       ],
     };
-
-    return [text(ctx, header), ...cards, ...pdf, footer];
   }
 }
 
@@ -93,27 +168,46 @@ function text(ctx: AcfPresentContext, body: string): OutboundMessage {
   return { kind: 'text', to: ctx.phoneNumber, phoneNumberId: ctx.phoneNumberId, body };
 }
 
+/** Tarjeta Telegram: separador + objeto·tipo + blockquote expandable con campos. */
+function cardTelegram(p: StoredProcess): string {
+  const acf = p.acf;
+  const head: string[] = [];
+  if (p.objeto) head.push(`🏗️ <b>${esc(capitalize(p.objeto.replace('_', ' ')))}</b>`);
+  if (acf?.tipoSeleccion) head.push(`<i>${esc(acf.tipoSeleccion)}</i>`);
+
+  const fields: string[] = [`🏛️ <b>Entidad:</b> ${esc(p.entityNombre)}`];
+  if (p.descripcion) fields.push(`📋 <b>Objeto:</b> ${esc(truncate(p.descripcion, 220))}`);
+  const cui = extractCui(acf?.alcance);
+  if (cui) fields.push(`🔖 <b>CUI:</b> <code>${esc(cui)}</code>`);
+  if (p.fechaPublicacion) {
+    fields.push(`📅 <b>Publicado:</b> <code>${formatDate(p.fechaPublicacion)}</code>`);
+  }
+  if (acf?.fechaAproxConv) {
+    fields.push(`🗓️ <b>Convocatoria:</b> <code>~${formatDate(acf.fechaAproxConv, 'UTC')}</code>`);
+  }
+  if (acf?.plazoDias != null) fields.push(`⏱️ <b>Plazo:</b> <code>${acf.plazoDias} días</code>`);
+  if (acf?.cantidad != null) {
+    fields.push(`🔢 <b>Cantidad:</b> <code>${esc(String(acf.cantidad))}</code>`);
+  }
+
+  return `${tgDivider(8)}\n${head.join(' · ')}\n<blockquote expandable>${fields.join('\n')}</blockquote>`;
+}
+
 function formatAcfCard(p: StoredProcess): string {
-  // Campos compartidos en la base; los propios de ACF en p.acf (CTI).
   const acf = p.acf;
   const lines: string[] = [`*${p.entityNombre}*`];
 
-  // Encabezado: objeto · tipo de selección.
   const head: string[] = [];
   if (p.objeto) head.push(`🏗️ ${capitalize(p.objeto.replace('_', ' '))}`);
   if (acf?.tipoSeleccion) head.push(`_${acf.tipoSeleccion}_`);
   if (head.length) lines.push(head.join(' · '));
 
-  // Bloque: descripción + CUI (extraído del alcance).
   const desc: string[] = [];
   if (p.descripcion) desc.push(`📋 ${truncate(p.descripcion, 200)}`);
   const cui = extractCui(acf?.alcance);
   if (cui) desc.push(`🔖 CUI ${cui}`);
   if (desc.length) lines.push('', ...desc);
 
-  // Bloque: fechas + plazo. fechaPublicacion = instante (hora Perú);
-  // fechaAproxConv = DATE (Prisma lo da como medianoche UTC) → formatear en UTC
-  // para no correr el día hacia atrás en zonas al oeste (Lima = UTC-5).
   const meta: string[] = [];
   if (p.fechaPublicacion) meta.push(`📅 Publicado:  ${formatDate(p.fechaPublicacion)}`);
   if (acf?.fechaAproxConv) meta.push(`🗓️ Convocatoria:  ~${formatDate(acf.fechaAproxConv, 'UTC')}`);
@@ -127,6 +221,10 @@ function formatAcfCard(p: StoredProcess): string {
 function extractCui(alcance: string | null | undefined): string | null {
   if (!alcance) return null;
   return /\bCUI[:\s]*(\d{3,})/i.exec(alcance)?.[1] ?? null;
+}
+
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function truncate(s: string, n: number): string {

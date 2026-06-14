@@ -19,6 +19,8 @@ Diseño técnico inicial del chatbot WhatsApp para consultar contrataciones púb
 | 13 | [Migración a Telegram](./13-telegram-migracion.md) | Plan completo del bot en Telegram: coexistencia WA+Telegram por env, grammY como `Api`+tipos (no framework), mapeo de `kind`/identidad, adapter+webhook, desbloqueo de suscripciones nativas, fases T0–T4 |
 | 14 | [Actualización de la data](./14-actualizacion-de-data.md) | Crawler ACF (incremental 1h + completo 24h) vs umbral de frescura `DB_FRESHNESS` (6h), cascada BD/cache/vivo, local vs producción, comando manual `crawl:acf`, troubleshooting de "búsqueda lenta" |
 | 15 | [Custom emoji Telegram](./15-telegram-emojis.md) | Dónde viven los `custom_emoji_id` (`src/common/telegram-emoji.ts`), registro nombre→id→fallback, reglas Bot API 9.4, cómo capturar/cambiar un emoji |
+| 16 | [Telegram — estado](./16-telegram-estado.md) | **Estado vivo**: qué está implementado (canal, identidad, menús, flujos, tarjetas, navegación in-place, typing, efectos) vs pendiente (motor de alertas, mejoras a evaluar) + mapa de archivos |
+| 17 | [Roles, permisos y comandos admin](./17-roles-permisos-alertas.md) | **Diseño congelado**: roles owner/seller (env vs BD), planes free/premium, cobro manual (sin Stars), comandos admin (`/activar` `/miplan` `/agregarvendedor` `/panico`…), anti-escalamiento, plan efectivo + vencimientos, auditoría inmutable, integración con cuotas de alerta, fases de implementación |
 
 ## Decisiones de stack confirmadas
 

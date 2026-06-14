@@ -39,6 +39,17 @@ export function tgEmoji(name: TgEmojiName): string {
   return `<tg-emoji emoji-id="${e.id}">${e.fallback}</tg-emoji>`;
 }
 
+/**
+ * Efectos animados de mensaje (message_effect_id, solo chats privados). Son los 6
+ * efectos públicos de Telegram. Swappable: cambiá cuál se usa donde se referencie.
+ */
+export const TG_EFFECT = {
+  celebrate: '5046509860389126442', // 🎉
+  fire: '5104841245755180586', // 🔥
+  like: '5107584321108051014', // 👍
+  heart: '5159385139981059251', // ❤️
+} as const;
+
 // Segmento del separador animado (emoji ➿); repetido arma una línea de color.
 const DIVIDER_SEGMENT = '5467658560840149395';
 

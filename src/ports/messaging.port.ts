@@ -32,6 +32,8 @@ export interface InboundMessage {
 // `imagePath` (opcional): ruta a una imagen de cabecera. Telegram la envía como
 // foto con el texto de caption (sendPhoto); WhatsApp/Kapso lo ignora. Se usa para
 // el banner de bienvenida.
+// `effectId` (opcional): id de efecto animado de Telegram (message_effect_id, solo
+// chats privados). WhatsApp/Kapso lo ignora.
 export type OutboundMessage =
   | {
       kind: 'text';
@@ -41,6 +43,7 @@ export type OutboundMessage =
       imagePath?: string;
       // `html: true` → el body ya viene como HTML de Telegram (no se re-escapa).
       html?: boolean;
+      effectId?: string;
     }
   | {
       kind: 'list';
@@ -50,6 +53,7 @@ export type OutboundMessage =
       buttonText: string;
       sections: ListSection[];
       imagePath?: string;
+      effectId?: string;
     }
   | {
       kind: 'buttons';
@@ -61,6 +65,7 @@ export type OutboundMessage =
       buttonLayout?: number[];
       imagePath?: string;
       html?: boolean;
+      effectId?: string;
     }
   | {
       // Documento alojado (PDF de anuncios ACF cuando hay >5 resultados).
@@ -72,6 +77,7 @@ export type OutboundMessage =
       link: string;
       filename: string;
       caption?: string;
+      effectId?: string;
     };
 
 export interface MessagingPort {
@@ -82,6 +88,8 @@ export interface MessagingPort {
   // hace fallback a `send`.
   editMessage?(message: OutboundMessage, messageId: string): Promise<{ messageId: string }>;
   deleteMessage?(to: string, messageId: string): Promise<void>;
+  /** Indicador "escribiendo…" (Telegram sendChatAction). Fire-and-forget. */
+  sendChatAction?(to: string, action: 'typing' | 'upload_document'): Promise<void>;
 }
 
 export const MESSAGING_PORT = Symbol('MESSAGING_PORT');

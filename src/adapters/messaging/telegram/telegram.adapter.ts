@@ -23,11 +23,14 @@ export class TelegramAdapter implements MessagingPort {
   async send(message: OutboundMessage): Promise<{ messageId: string }> {
     const chatId = Number(message.to);
 
+    const effect = message.effectId ? { message_effect_id: message.effectId } : {};
+
     if (message.kind === 'document') {
       const sent = await this.client.api.sendDocument(chatId, message.link, {
         ...(message.caption
           ? { caption: waToTelegramHtml(message.caption), parse_mode: 'HTML' }
           : {}),
+        ...effect,
       });
       return { messageId: String(sent.message_id) };
     }
@@ -42,6 +45,7 @@ export class TelegramAdapter implements MessagingPort {
         caption: text,
         parse_mode: 'HTML',
         ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+        ...effect,
       });
       return { messageId: String(sent.message_id) };
     }
@@ -49,8 +53,13 @@ export class TelegramAdapter implements MessagingPort {
     const sent = await this.client.api.sendMessage(chatId, text, {
       parse_mode: 'HTML',
       ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      ...effect,
     });
     return { messageId: String(sent.message_id) };
+  }
+
+  async sendChatAction(to: string, action: 'typing' | 'upload_document'): Promise<void> {
+    await this.client.api.sendChatAction(Number(to), action);
   }
 
   // Reescribe un mensaje en su lugar (navegación sin alargar el chat). Solo aplica a
