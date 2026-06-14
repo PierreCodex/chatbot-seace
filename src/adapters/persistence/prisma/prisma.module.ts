@@ -4,9 +4,11 @@ import { ENTITIES_REPO } from '../../../ports/persistence/entities.repo.port';
 import { NOTIFICATIONS_REPO } from '../../../ports/persistence/notifications.repo.port';
 import { PROCESSES_REPO } from '../../../ports/persistence/processes.repo.port';
 import { SEARCHES_REPO } from '../../../ports/persistence/searches.repo.port';
+import { SUBSCRIPTION_HITS_REPO } from '../../../ports/persistence/subscription-hits.repo.port';
 import { SUBSCRIPTIONS_REPO } from '../../../ports/persistence/subscriptions.repo.port';
 import { WA_USERS_REPO } from '../../../ports/persistence/wa-users.repo.port';
 import { PrismaAdminRepo } from './admin.repo';
+import { PrismaSubscriptionHitsRepo } from './subscription-hits.repo';
 import { PrismaEntitiesRepo } from './entities.repo';
 import { PrismaNotificationsRepo } from './notifications.repo';
 import { PrismaProcessesRepo } from './processes.repo';
@@ -23,6 +25,7 @@ import { PrismaWaUsersRepo } from './wa-users.repo';
     { provide: ENTITIES_REPO, useClass: PrismaEntitiesRepo },
     { provide: WA_USERS_REPO, useClass: PrismaWaUsersRepo },
     { provide: SUBSCRIPTIONS_REPO, useClass: PrismaSubscriptionsRepo },
+    { provide: SUBSCRIPTION_HITS_REPO, useClass: PrismaSubscriptionHitsRepo },
     { provide: SEARCHES_REPO, useClass: PrismaSearchesRepo },
     { provide: NOTIFICATIONS_REPO, useClass: PrismaNotificationsRepo },
     { provide: ADMIN_REPO, useClass: PrismaAdminRepo },
@@ -33,6 +36,7 @@ import { PrismaWaUsersRepo } from './wa-users.repo';
     ENTITIES_REPO,
     WA_USERS_REPO,
     SUBSCRIPTIONS_REPO,
+    SUBSCRIPTION_HITS_REPO,
     SEARCHES_REPO,
     NOTIFICATIONS_REPO,
     ADMIN_REPO,

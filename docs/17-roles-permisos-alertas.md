@@ -242,8 +242,13 @@ inmutable.
      filtros de la última búsqueda → frecuencia + duración gated por plan), `planPolicy`
      (cuota free 3 / premium 10 vía `countActive`), "Mis alertas" (listar/borrar).
      Columna `subscriptions.entity_nombre` (match A1 por nombre). 10 tests.
-   - ⏳ **6b — Matcher + Notifier:** cruzar procesos nuevos del crawl ↔ suscripciones
-     activas → `subscription_hits` → entregar (inmediata `hourly` / digest diario/semanal).
+   - ✅ **6b — Matcher + Notifier:** `HitDetectionService` (cruza anuncios recién
+     insertados por el crawl ↔ alertas activas → `subscription_hits`, dedup por unique) +
+     `AlertNotifierService` (entrega inmediata `hourly` tras el crawl + digest diario 8am /
+     semanal lun 8am, zona Lima). `AlertPresenter` (tarjetas del aviso). Corre en el
+     worker (`AlertsModule` + `MessagingModule`). `processes.upsertMany` ahora devuelve
+     `insertedIds` (dispara solo por anuncios nuevos). Preview local: `pnpm alerts:preview`.
+     8 tests.
 7. ⏳ **Cron de vencimiento** (`AdminRepo.expireOverdue` ya existe; falta el agendado +
    notificación) + auto-expirar alertas (`subscriptions.expires_at`) + manejo de over-quota.
 8. ⏳ **`setMyCommands` por scope** (menú admin solo para owner/sellers).

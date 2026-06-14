@@ -52,6 +52,7 @@ export class PrismaProcessesRepo implements ProcessesRepoPort {
     let updated = 0;
     let unchanged = 0;
     const ids: string[] = [];
+    const insertedIds: string[] = [];
 
     for (const r of rows) {
       const dedupeKey = dedupeKeyOf(r);
@@ -66,6 +67,7 @@ export class PrismaProcessesRepo implements ProcessesRepoPort {
           select: { id: true },
         });
         ids.push(created.id);
+        insertedIds.push(created.id);
         inserted++;
       } else if (existing.contentHash !== r.contentHash) {
         await this.prisma.process.update({
@@ -84,7 +86,7 @@ export class PrismaProcessesRepo implements ProcessesRepoPort {
       }
     }
 
-    return { inserted, updated, unchanged, ids };
+    return { inserted, updated, unchanged, ids, insertedIds };
   }
 
   findById(id: string): Promise<StoredProcess | null> {

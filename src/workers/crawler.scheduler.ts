@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { AcfHttpScraper } from '../adapters/scraper/seace/acf-http.scraper';
 import type { Env } from '../config/env.schema';
+import { AlertNotifierService } from '../modules/alerts/alert-notifier.service';
+import { HitDetectionService } from '../modules/alerts/hit-detection.service';
 import { PROCESSES_REPO, type ProcessesRepoPort } from '../ports/persistence/processes.repo.port';
 
 type CrawlMode = 'incremental' | 'full';
@@ -31,6 +33,8 @@ export class CrawlerScheduler {
   constructor(
     private readonly scraper: AcfHttpScraper,
     @Inject(PROCESSES_REPO) private readonly processes: ProcessesRepoPort,
+    private readonly hitDetection: HitDetectionService,
+    private readonly notifier: AlertNotifierService,
     config: ConfigService<Env, true>,
   ) {
     this.enabled = config.get('CRAWLER_ENABLED', { infer: true }) ?? false;
@@ -67,6 +71,7 @@ export class CrawlerScheduler {
     let inserted = 0;
     let updated = 0;
     let unchanged = 0;
+    const insertedIds: string[] = [];
 
     try {
       await this.scraper.crawlAcf({
@@ -76,6 +81,7 @@ export class CrawlerScheduler {
           inserted += r.inserted;
           updated += r.updated;
           unchanged += r.unchanged;
+          insertedIds.push(...r.insertedIds);
           return r;
         },
       });
@@ -83,6 +89,16 @@ export class CrawlerScheduler {
       this.logger.log(
         `crawl ${mode} ok: +${inserted} nuevos, ~${updated} cambiados, =${unchanged} sin cambio (${secs}s)`,
       );
+      // Motor de alertas (docs/09): cruza los anuncios nuevos contra las alertas
+      // activas y entrega los avisos inmediatos (hourly). No frena el crawl si falla.
+      if (insertedIds.length > 0) {
+        try {
+          const grouped = await this.hitDetection.detect(insertedIds);
+          await this.notifier.notifyImmediate(grouped);
+        } catch (err) {
+          this.logger.error(`alertas tras crawl fallaron: ${(err as Error).message}`);
+        }
+      }
       return { inserted, updated, unchanged, skipped: false };
     } catch (err) {
       this.logger.error(`crawl ${mode} falló: ${(err as Error).message}`);

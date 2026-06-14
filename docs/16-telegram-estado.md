@@ -93,11 +93,14 @@
 - Pendiente (fases 6–9): `planPolicy`+`subscribe.flow`, cron de vencimiento,
   `setMyCommands` por scope, confirmación inline en destructivos.
 
-### Motor de alertas (F5) — el feature grande
-- `planPolicy` (Free 3 / Premium 10) + `subscribe.flow` (el botón "🔔 Avísame" hereda
-  los filtros: objeto / objeto+entidad).
-- `HitDetectionService` (matchea crawl ↔ suscripciones) + **dispatch** de notificaciones.
-- Wiring crawler → HitDetection.
+### Motor de alertas ✅ (ver [17](./17-roles-permisos-alertas.md) fase 6)
+- ✅ `planPolicy` (Free 3 / Premium 10) + `SubscribeFlow` (botón "🔔 Avísame" hereda los
+  filtros; frecuencia + duración gated por plan) + "Mis alertas".
+- ✅ `HitDetectionService` (matchea anuncios nuevos del crawl ↔ alertas) +
+  `AlertNotifierService` (inmediata `hourly` + digest diario/semanal) en el worker.
+- Preview local sin esperar a SEACE: `pnpm alerts:preview -- --id=<telegram_id>`.
+- ⏳ Pendiente: job de expiración de alertas (`expires_at` → `expired`) + auto-downgrade
+  premium vencido (fase 7).
 
 > **Telegram Stars: descartado.** El cobro es manual/externo; el plan se activa con
 > comandos propios. Ver [17](./17-roles-permisos-alertas.md).

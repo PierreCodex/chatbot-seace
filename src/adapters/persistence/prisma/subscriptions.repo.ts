@@ -38,6 +38,39 @@ export class PrismaSubscriptionsRepo implements SubscriptionsRepoPort {
     return this.prisma.subscription.count({ where: { userId, status: 'active' } });
   }
 
+  findActiveMatching(
+    objeto: SubscriptionCreateInput['objeto'],
+    entityNombre: string | null,
+  ): Promise<StoredSubscription[]> {
+    const now = new Date();
+    // A2 (entityNombre null) matchea cualquier anuncio del objeto; A1 solo si el
+    // nombre coincide (case-insensitive) con el del anuncio.
+    const scope: object[] = [{ entityNombre: null }];
+    if (entityNombre) {
+      scope.push({ entityNombre: { equals: entityNombre, mode: 'insensitive' } });
+    }
+    return this.prisma.subscription.findMany({
+      where: {
+        tab: 'anuncios_futuros',
+        status: 'active',
+        objeto: objeto ?? undefined,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        AND: [{ OR: scope }],
+      },
+    });
+  }
+
+  listActiveByFrequency(frequency: SubscriptionCreateInput['frequency']): Promise<StoredSubscription[]> {
+    const now = new Date();
+    return this.prisma.subscription.findMany({
+      where: {
+        status: 'active',
+        frequency,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+    });
+  }
+
   listByUser(userId: string, status?: SubStatus): Promise<StoredSubscription[]> {
     return this.prisma.subscription.findMany({
       where: { userId, ...(status ? { status } : {}) },

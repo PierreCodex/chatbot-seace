@@ -24,6 +24,17 @@ export interface SubscriptionsRepoPort {
   listByUser(userId: string, status?: SubStatus): Promise<StoredSubscription[]>;
   /** Cuenta las alertas activas de un usuario (para aplicar la cuota del plan). */
   countActive(userId: string): Promise<number>;
+  /**
+   * Alertas ACF activas (no vencidas) que matchean un anuncio nuevo: mismo `objeto`
+   * y alcance A2 (entityNombre null = todas) o A1 (entityNombre = el del anuncio).
+   * `entityNombre` del anuncio puede ser null. Ver docs/09 §2.1 (matcher).
+   */
+  findActiveMatching(
+    objeto: ObjetoContratacion,
+    entityNombre: string | null,
+  ): Promise<StoredSubscription[]>;
+  /** Alertas activas (no vencidas) de una frecuencia dada (para el digest). */
+  listActiveByFrequency(frequency: SubFrequency): Promise<StoredSubscription[]>;
   updateStatus(id: string, status: SubStatus): Promise<StoredSubscription>;
   markRun(id: string, hitCount: number, nextRunAt: Date | null): Promise<StoredSubscription>;
 }

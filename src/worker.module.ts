@@ -6,6 +6,7 @@ import { RedisCacheModule } from './adapters/cache/redis/redis.module';
 import { BullMqQueueModule } from './adapters/queue/bullmq/bullmq.module';
 import { SeaceScraperModule } from './adapters/scraper/seace/seace.module';
 import { HealthModule } from './common/health/health.module';
+import { AlertsModule } from './modules/alerts/alerts.module';
 import { CrawlerScheduler } from './workers/crawler.scheduler';
 import { ScrapeProcessor } from './workers/scrape.processor';
 
@@ -18,6 +19,7 @@ import { ScrapeProcessor } from './workers/scrape.processor';
     BullMqQueueModule,
     SeaceScraperModule,
     HealthModule,
+    AlertsModule,
   ],
   providers: [ScrapeProcessor, CrawlerScheduler],
 })

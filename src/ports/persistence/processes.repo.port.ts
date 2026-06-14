@@ -20,6 +20,9 @@ export interface UpsertResult {
    * Las filas que fallaron al persistir no aparecen.
    */
   ids: string[];
+  /** IDs de las filas **recién creadas** (nuevas). Subconjunto de `ids`. Lo usa el
+   * matcher de alertas para disparar solo por anuncios nuevos (no por re-scrapes). */
+  insertedIds: string[];
 }
 
 export interface ProcessesRepoPort {
