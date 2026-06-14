@@ -137,15 +137,18 @@ export class AdminCommandsService {
   private async miplan(ctx: AdminContext): Promise<OutboundMessage[]> {
     const u = await this.repo.findUser(ctx.senderId);
     if (!u) return [this.text(ctx, 'Escribí /start para empezar.')];
-    const eff = this.plan.getEffectivePlan(u);
+    const role = await this.roles.roleOf(ctx.senderId);
+    const eff = this.plan.getEffectivePlan(u, new Date(), role !== null);
     const cupo = this.plan.maxAlertas(eff);
     const lines = [
       '👤 <b>Tu cuenta</b>',
       `🆔 Tu id: <code>${ctx.senderId}</code>`,
       `📦 Plan: <b>${planLabel(eff)}</b>`,
     ];
-    if (eff === 'premium' && u.planExpiresAt) lines.push(`⏳ Vence: ${fmtDate(u.planExpiresAt)}`);
-    if (eff === 'premium' && !u.planExpiresAt) lines.push('⏳ Vence: <i>sin vencimiento</i>');
+    if (role) lines.push(`🛡️ Premium por tu rol de <b>${role}</b>`);
+    else if (eff === 'premium' && u.planExpiresAt)
+      lines.push(`⏳ Vence: ${fmtDate(u.planExpiresAt)}`);
+    else if (eff === 'premium') lines.push('⏳ Vence: <i>sin vencimiento</i>');
     if (eff === 'suspended') lines.push('⚠️ Tu cuenta está suspendida.');
     lines.push(`🔔 Alertas: hasta <b>${cupo}</b>`);
     return [this.text(ctx, lines.join('\n'))];
@@ -280,8 +283,8 @@ export class AdminCommandsService {
     if (!id) return [this.text(ctx, 'Uso: <code>/usuario &lt;id&gt;</code>')];
     const u = await this.repo.findUser(id);
     if (!u) return [this.text(ctx, notStarted(id))];
-    const eff = this.plan.getEffectivePlan(u);
     const role = await this.roles.roleOf(id);
+    const eff = this.plan.getEffectivePlan(u, new Date(), role !== null);
     const lines = [
       `👤 <b>Usuario</b> <code>${id}</code>`,
       u.displayName ? `📛 ${esc(u.displayName)}` : null,

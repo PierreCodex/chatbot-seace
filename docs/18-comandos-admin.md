@@ -14,6 +14,10 @@
 | **seller** (vendedor) | Lo agrega el owner con `/agregarvendedor` | Solo gestionar planes de usuarios comunes |
 | **usuario** | Cualquiera que escribió `/start` | `/miplan` |
 
+> **Owner y seller son Premium automáticamente por su rol** — no necesitan que se les
+> active un plan (su `/miplan` muestra "Premium por tu rol"). Solo los **usuarios
+> comunes** necesitan que les actives Premium.
+
 > El owner actual es `7079999767`. Para sumar owners se edita `OWNER_IDS` en `.env`
 > (separados por coma) y se reinicia el bot. **No hay comando** para crear owners.
 

@@ -23,8 +23,13 @@ const MAX_ALERTAS: Record<EffectivePlan, number> = {
  */
 @Injectable()
 export class PlanService {
-  getEffectivePlan(u: PlanUserView, now: Date = new Date()): EffectivePlan {
+  /**
+   * `premiumByRole`: owner y seller tienen Premium **por su rol** (no necesitan que
+   * se les active un plan). La suspensión sigue ganando. Ver docs/17 §1.
+   */
+  getEffectivePlan(u: PlanUserView, now: Date = new Date(), premiumByRole = false): EffectivePlan {
     if (u.blocked) return 'suspended';
+    if (premiumByRole) return 'premium';
     if (
       u.plan === 'premium' &&
       (u.planExpiresAt === null || u.planExpiresAt.getTime() > now.getTime())

@@ -34,4 +34,9 @@ export class RolesService {
     if (this.isOwner(telegramId)) return 'owner';
     return (await this.repo.findActiveSeller(telegramId)) ? 'seller' : null;
   }
+
+  /** owner y seller tienen Premium **por su rol** (no necesitan plan). docs/17 §1. */
+  async isPremiumByRole(telegramId: string): Promise<boolean> {
+    return (await this.roleOf(telegramId)) !== null;
+  }
 }

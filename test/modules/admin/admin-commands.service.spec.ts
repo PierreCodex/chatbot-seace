@@ -74,14 +74,22 @@ describe('AdminCommandsService.handle', () => {
     expect(await svc.handle(ctx('/start'))).toBeNull(); // /start no lo maneja admin
   });
 
-  it('/miplan (público) devuelve el plan del emisor', async () => {
-    repo.findUser.mockResolvedValue(freeUser('1'));
-    const r = await svc.handle(ctx('/miplan'));
+  it('/miplan de un usuario común muestra Free', async () => {
+    repo.findUser.mockResolvedValue(freeUser('999'));
+    const r = await svc.handle(ctx('/miplan', '999'));
     expect(r).not.toBeNull();
     expect(r![0].kind).toBe('text');
     const body = (r![0] as { body: string }).body;
-    expect(body).toContain('<code>1</code>');
+    expect(body).toContain('<code>999</code>');
     expect(body).toContain('Free');
+  });
+
+  it('/miplan del owner muestra Premium por rol (sin auto-activarse)', async () => {
+    repo.findUser.mockResolvedValue(freeUser('1')); // plan Free en BD
+    const r = await svc.handle(ctx('/miplan', '1'));
+    const body = (r![0] as { body: string }).body;
+    expect(body).toContain('Premium');
+    expect(body).toMatch(/por tu rol/i);
   });
 
   it('no-autorizado tipea comando admin → sigilo ([]) + registra intento', async () => {

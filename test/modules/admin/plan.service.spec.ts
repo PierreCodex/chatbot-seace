@@ -32,6 +32,14 @@ describe('PlanService.getEffectivePlan', () => {
   it('bloqueado → suspended (gana sobre premium)', () => {
     expect(svc.getEffectivePlan(u({ blocked: true, plan: 'premium' }), NOW)).toBe('suspended');
   });
+
+  it('premiumByRole → premium aunque el plan en BD sea free', () => {
+    expect(svc.getEffectivePlan(u({ plan: 'free' }), NOW, true)).toBe('premium');
+  });
+
+  it('premiumByRole no salva a un suspendido', () => {
+    expect(svc.getEffectivePlan(u({ blocked: true, plan: 'free' }), NOW, true)).toBe('suspended');
+  });
 });
 
 describe('PlanService.maxAlertas', () => {

@@ -34,6 +34,11 @@ Soporta múltiples owners (`OWNER_IDS=111,222`).
 usuarios comunes. **No** modera (suspender), **no** gestiona staff, **no** toca
 configuración. Suspensión, gestión de sellers y auditoría global = **owner-only**.
 
+**Premium por rol (decisión cerrada):** owner y seller tienen **Premium efectivo por su
+rol**, sin necesidad de activarse un plan (`PlanService.getEffectivePlan(..., premiumByRole)`
+con `RolesService.isPremiumByRole`). La suspensión sigue ganando. Solo los usuarios
+comunes dependen de `WaUser.plan`.
+
 ---
 
 ## 2. Modelo de datos
