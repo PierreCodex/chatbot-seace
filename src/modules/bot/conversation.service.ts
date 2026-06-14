@@ -4,7 +4,7 @@ import type { UserChannel } from '@prisma/client';
 import type { Env } from '../../config/env.schema';
 import type { InboundMessage, MessagingPort, OutboundMessage } from '../../ports/messaging.port';
 import { MESSAGING_PORT } from '../../ports/messaging.port';
-import { AdminCommandsService } from '../admin/admin-commands.service';
+import { AdminCommandsService, type AdminHandleResult } from '../admin/admin-commands.service';
 import { ConversationStore } from './conversation.store';
 import { FlowRegistry } from './flow.registry';
 import type { ConversationState, FlowContext, FlowResult } from './types';
@@ -58,13 +58,14 @@ export class ConversationService {
     // input es un comando admin/`/miplan`, lo maneja aquí y corta. Devuelve `[]`
     // en modo sigilo (no-autorizado tipeando un comando admin → sin respuesta).
     // Ver docs/17.
-    const adminMsgs = await this.admin.handle({
+    const adminResult = await this.admin.handle({
       senderId: inbound.phoneNumber,
       phoneNumberId: inbound.phoneNumberId,
       input,
+      sourceMessageId: inbound.sourceMessageId,
     });
-    if (adminMsgs !== null) {
-      for (const m of adminMsgs) await this.send(m);
+    if (adminResult !== null) {
+      await this.deliverAdmin(adminResult, inbound);
       return;
     }
 
@@ -140,6 +141,34 @@ export class ConversationService {
         }
       }
     }
+  }
+
+  /**
+   * Entrega el resultado del router admin respetando su `navigation` (paginación de
+   * /cmds): `edit` reescribe el mensaje origen, `delete` lo borra (Cerrar).
+   */
+  private async deliverAdmin(result: AdminHandleResult, inbound: InboundMessage): Promise<void> {
+    const srcId = inbound.sourceMessageId;
+    if (result.navigation === 'delete' && this.messaging.deleteMessage && srcId) {
+      await this.messaging.deleteMessage(inbound.phoneNumber, srcId).catch(() => {});
+      return;
+    }
+    if (
+      result.navigation === 'edit' &&
+      this.messaging.editMessage &&
+      srcId &&
+      result.messages.length > 0
+    ) {
+      try {
+        await this.messaging.editMessage(result.messages[0], srcId);
+      } catch (err) {
+        this.logger.debug(`editMessage (admin) falló, envío normal: ${(err as Error).message}`);
+        await this.send(result.messages[0]);
+      }
+      for (const m of result.messages.slice(1)) await this.send(m);
+      return;
+    }
+    for (const m of result.messages) await this.send(m);
   }
 
   /**

@@ -78,8 +78,8 @@ describe('AdminCommandsService.handle', () => {
     repo.findUser.mockResolvedValue(freeUser('999'));
     const r = await svc.handle(ctx('/miplan', '999'));
     expect(r).not.toBeNull();
-    expect(r![0].kind).toBe('text');
-    const body = (r![0] as { body: string }).body;
+    expect(r!.messages[0].kind).toBe('text');
+    const body = (r!.messages[0] as { body: string }).body;
     expect(body).toContain('<code>999</code>');
     expect(body).toContain('Free');
   });
@@ -87,43 +87,61 @@ describe('AdminCommandsService.handle', () => {
   it('/miplan del owner muestra Premium por rol (sin auto-activarse)', async () => {
     repo.findUser.mockResolvedValue(freeUser('1')); // plan Free en BD
     const r = await svc.handle(ctx('/miplan', '1'));
-    const body = (r![0] as { body: string }).body;
+    const body = (r!.messages[0] as { body: string }).body;
     expect(body).toContain('Premium');
     expect(body).toMatch(/por tu rol/i);
   });
 
   it('/ayuda (público) explica las funciones del bot', async () => {
     const r = await svc.handle(ctx('/ayuda', '999'));
-    const body = (r![0] as { body: string }).body;
+    const body = (r!.messages[0] as { body: string }).body;
     expect(body).toMatch(/anuncios futuros/i);
     expect(body).toContain('/ent');
     expect(body).toContain('/miplan');
   });
 
-  it('/cmds del owner incluye el grupo "Solo dueño"', async () => {
+  it('/cmds del owner: página 1/4 (Planes) con botón Siguiente', async () => {
     const r = await svc.handle(ctx('/cmds', '1'));
-    const body = (r![0] as { body: string }).body;
-    expect(body).toMatch(/administración/i);
-    expect(body).toMatch(/Solo dueño/i);
-    expect(body).toContain('/agregarvendedor');
+    const m = r!.messages[0];
+    expect(m.kind).toBe('buttons');
+    if (m.kind === 'buttons') {
+      expect((m as { body: string }).body).toContain('1/4');
+      expect((m as { body: string }).body).toMatch(/Planes/i);
+      expect(m.buttons.map((b) => b.id)).toContain('cmds:p:1');
+      expect(m.buttons.map((b) => b.id)).toContain('cmds:exit');
+    }
   });
 
-  it('/cmds del seller NO muestra el grupo "Solo dueño"', async () => {
+  it('/cmds del owner navega a la página de Sellers (cmds:p:2) editando in-place', async () => {
+    const r = await svc.handle(ctx('cmds:p:2', '1'));
+    expect(r!.navigation).toBe('edit');
+    const body = (r!.messages[0] as { body: string }).body;
+    expect(body).toMatch(/Sellers/i);
+    expect(body).toContain('3/4');
+  });
+
+  it('/cmds del seller solo tiene 2 páginas (sin Sellers/Moderación)', async () => {
     repo.findActiveSeller.mockResolvedValue({ telegramId: '500', active: true });
     const r = await svc.handle(ctx('/cmds', '500'));
-    const body = (r![0] as { body: string }).body;
-    expect(body).toContain('/activar');
-    expect(body).not.toMatch(/Solo dueño/i);
+    const body = (r!.messages[0] as { body: string }).body;
+    expect(body).toContain('1/2');
+    expect(body).not.toMatch(/Moderación/i);
+  });
+
+  it('botón Cerrar (cmds:exit) borra el mensaje', async () => {
+    const r = await svc.handle(ctx('cmds:exit', '1'));
+    expect(r!.navigation).toBe('delete');
+    expect(r!.messages).toEqual([]);
   });
 
   it('/cmds de un no-autorizado → sigilo ([])', async () => {
     const r = await svc.handle(ctx('/cmds', '999'));
-    expect(r).toEqual([]);
+    expect(r!.messages).toEqual([]);
   });
 
   it('no-autorizado tipea comando admin → sigilo ([]) + registra intento', async () => {
     const r = await svc.handle(ctx('/activar 555 30', '77'));
-    expect(r).toEqual([]);
+    expect(r!.messages).toEqual([]);
     expect(repo.setPlan).not.toHaveBeenCalled();
     expect(repo.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'intento_no_autorizado' }),
@@ -147,29 +165,29 @@ describe('AdminCommandsService.handle', () => {
         actorRole: 'owner',
       }),
     );
-    expect(r).toHaveLength(2);
-    expect(r![0].to).toBe('1'); // confirmación al owner
-    expect(r![1].to).toBe('555'); // aviso al usuario
+    expect(r!.messages).toHaveLength(2);
+    expect(r!.messages[0].to).toBe('1'); // confirmación al owner
+    expect(r!.messages[1].to).toBe('555'); // aviso al usuario
   });
 
   it('/activar a usuario inexistente avisa que no inició el bot', async () => {
     repo.findUser.mockResolvedValue(null);
     const r = await svc.handle(ctx('/activar 555 30'));
     expect(repo.setPlan).not.toHaveBeenCalled();
-    expect((r![0] as { body: string }).body).toMatch(/no ha iniciado/i);
+    expect((r!.messages[0] as { body: string }).body).toMatch(/no ha iniciado/i);
   });
 
   it('seller NO puede modificar su propio plan (anti-escalamiento)', async () => {
     repo.findActiveSeller.mockResolvedValue({ telegramId: '500', active: true });
     const r = await svc.handle(ctx('/activar 500 30', '500'));
     expect(repo.setPlan).not.toHaveBeenCalled();
-    expect((r![0] as { body: string }).body).toMatch(/propio plan/i);
+    expect((r!.messages[0] as { body: string }).body).toMatch(/propio plan/i);
   });
 
   it('seller NO puede usar comandos solo-owner', async () => {
     repo.findActiveSeller.mockResolvedValue({ telegramId: '500', active: true });
     const r = await svc.handle(ctx('/vendedores', '500'));
-    expect((r![0] as { body: string }).body).toMatch(/solo del dueño/i);
+    expect((r!.messages[0] as { body: string }).body).toMatch(/solo del dueño/i);
   });
 
   it('owner /agregarvendedor da de alta + avisa', async () => {
@@ -179,6 +197,6 @@ describe('AdminCommandsService.handle', () => {
     expect(repo.addSeller).toHaveBeenCalledWith(
       expect.objectContaining({ telegramId: '600', ownerId: '1' }),
     );
-    expect(r).toHaveLength(2);
+    expect(r!.messages).toHaveLength(2);
   });
 });

@@ -58,9 +58,28 @@ Es el comando que usa el cliente para **pasarte su id** cuando te paga.
 ## Ayuda de administración
 
 ### `/cmds`
-Lista **los comandos de administración** que tenés disponibles **según tu rol** (el owner
-ve todo, el seller ve solo los de planes). Es el "índice" para vos y tus sellers — los
-usuarios comunes no lo ven (sigilo). Para ellos está `/ayuda`.
+Lista **los comandos de administración** en una **tarjeta paginada** con botones
+**« Anterior · Siguiente » · Menú · Cerrar**. Las páginas dependen del rol:
+
+- **owner** → 4 páginas: `📦 Planes` · `📊 Consultas` · `👑 Sellers` · `🛡️ Moderación`
+- **seller** → 2 páginas: `📦 Planes` · `📊 Consultas`
+
+La navegación es **in-place** (los botones reescriben el mismo mensaje; *Cerrar* lo borra).
+Es el "índice" para vos y tus sellers — los usuarios comunes no lo ven (sigilo). Para
+ellos está `/ayuda`.
+
+```
+🛠️ Comandos de administración  ·  1/4
+Tu rol: owner
+▌ 📦 Planes
+▌ • /activar <id> <días|permanente> [nota]
+▌     dar Premium
+▌ • /extender <id> <días> [nota]
+▌     sumar días
+▌ ...
+[ « Anterior ] [ Siguiente » ]
+[ Menú ]       [ Cerrar ]
+```
 
 ---
 

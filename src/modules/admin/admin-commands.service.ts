@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { AdminAuditLog } from '@prisma/client';
 import { CACHE_PORT, type CachePort } from '../../ports/cache.port';
 import { ADMIN_REPO, type AdminRepoPort } from '../../ports/persistence/admin.repo.port';
-import type { OutboundMessage } from '../../ports/messaging.port';
+import type { ButtonOption, OutboundMessage } from '../../ports/messaging.port';
 import { PlanService } from './plan.service';
 import { RolesService, type AdminRole } from './roles.service';
 
@@ -11,6 +11,17 @@ export interface AdminContext {
   senderId: string;
   phoneNumberId: string;
   input: string;
+  /** message_id del mensaje origen (botón), para editar/borrar in-place. */
+  sourceMessageId?: string;
+}
+
+/**
+ * Resultado del router admin. `navigation` (Telegram): `edit` reescribe el mensaje
+ * origen (paginación de /cmds), `delete` lo borra (botón Cerrar).
+ */
+export interface AdminHandleResult {
+  messages: OutboundMessage[];
+  navigation?: 'edit' | 'delete';
 }
 
 /** Comandos admin (no incluye los públicos `/miplan` y `/ayuda`). */
@@ -65,33 +76,50 @@ export class AdminCommandsService {
     @Inject(CACHE_PORT) private readonly cache: CachePort,
   ) {}
 
-  async handle(ctx: AdminContext): Promise<OutboundMessage[] | null> {
+  async handle(ctx: AdminContext): Promise<AdminHandleResult | null> {
+    // Callbacks de paginación de /cmds (botones « » / Cerrar). Sin estado: la
+    // página va en el id del botón.
+    if (ctx.input.startsWith('cmds:')) return this.cmdsNav(ctx);
+
     const parsed = parseCommand(ctx.input);
     if (!parsed) return null;
     const { cmd, args } = parsed;
 
-    if (cmd === 'miplan') return this.miplan(ctx);
-    if (cmd === 'ayuda' || cmd === 'help') return this.ayuda(ctx);
+    if (cmd === 'miplan') return { messages: await this.miplan(ctx) };
+    if (cmd === 'ayuda' || cmd === 'help') return { messages: await this.ayuda(ctx) };
     if (!ADMIN_COMMANDS.has(cmd)) return null;
 
     const role = await this.roles.roleOf(ctx.senderId);
     if (!role) {
       // Sigilo: no respondemos nada; registramos el intento (rate-limited).
       await this.recordUnauthorized(ctx.senderId, cmd);
-      return [];
+      return { messages: [] };
     }
     if (OWNER_ONLY.has(cmd) && role !== 'owner') {
-      return [this.text(ctx, '🚫 Ese comando es solo del dueño.')];
+      return { messages: [this.text(ctx, '🚫 Ese comando es solo del dueño.')] };
     }
 
     try {
-      return await this.dispatch(cmd, args, ctx, role);
+      if (cmd === 'cmds') return { messages: [this.renderCmds(ctx, role, 0)] };
+      return { messages: await this.dispatch(cmd, args, ctx, role) };
     } catch (err) {
       this.logger.error(`admin ${cmd} falló: ${(err as Error).message}`);
-      return [
-        this.text(ctx, '⚠️ No pude completar la acción. Revisá los datos e intentá de nuevo.'),
-      ];
+      return {
+        messages: [
+          this.text(ctx, '⚠️ No pude completar la acción. Revisá los datos e intentá de nuevo.'),
+        ],
+      };
     }
+  }
+
+  /** Maneja los callbacks de la paginación de /cmds (re-valida el rol). */
+  private async cmdsNav(ctx: AdminContext): Promise<AdminHandleResult> {
+    const role = await this.roles.roleOf(ctx.senderId);
+    if (!role) return { messages: [] };
+    if (ctx.input === 'cmds:exit') return { messages: [], navigation: 'delete' };
+    const m = /^cmds:p:(\d+)$/.exec(ctx.input);
+    if (m) return { messages: [this.renderCmds(ctx, role, Number(m[1]))], navigation: 'edit' };
+    return { messages: [] };
   }
 
   private dispatch(
@@ -101,8 +129,6 @@ export class AdminCommandsService {
     role: AdminRole,
   ): Promise<OutboundMessage[]> {
     switch (cmd) {
-      case 'cmds':
-        return this.cmds(ctx, role);
       case 'activar':
         return this.activar(args, ctx, role);
       case 'extender':
@@ -182,32 +208,39 @@ export class AdminCommandsService {
 
   // ── comandos de administración (owner + seller) ──
 
-  /** Lista los comandos de admin disponibles según el rol del emisor. */
-  private cmds(ctx: AdminContext, role: AdminRole): Promise<OutboundMessage[]> {
-    const planes = [
-      '📦 <b>Planes</b> (owner y seller)',
-      '<code>/activar &lt;id&gt; &lt;días|permanente&gt; [nota]</code> — dar Premium',
-      '<code>/extender &lt;id&gt; &lt;días&gt; [nota]</code> — sumar días',
-      '<code>/desactivar &lt;id&gt; [nota]</code> — volver a Free',
-      '<code>/usuario &lt;id&gt;</code> — ver ficha',
-      '<code>/premium</code> — listar Premium activos',
-      '<code>/porvencer [días]</code> — próximos vencimientos',
-      '<code>/historial &lt;id&gt;</code> — auditoría del usuario',
+  /**
+   * Renderiza una página de /cmds como tarjeta (blockquote) con paginación. Las
+   * páginas dependen del rol (owner 4, seller 2). `page` se clampa al rango.
+   */
+  private renderCmds(ctx: AdminContext, role: AdminRole, page: number): OutboundMessage {
+    const pages = cmdsPages(role);
+    const total = pages.length;
+    const idx = Math.max(0, Math.min(page, total - 1));
+    const pg = pages[idx];
+    const body =
+      `🛠️ <b>Comandos de administración</b>  ·  <code>${idx + 1}/${total}</code>\n` +
+      `Tu rol: <b>${role}</b>\n` +
+      `<blockquote><b>${pg.title}</b>\n${pg.lines.join('\n')}</blockquote>`;
+
+    const nav: ButtonOption[] = [];
+    if (idx > 0) nav.push({ id: `cmds:p:${idx - 1}`, title: '« Anterior', style: 'primary' });
+    if (idx < total - 1) {
+      nav.push({ id: `cmds:p:${idx + 1}`, title: 'Siguiente »', style: 'primary' });
+    }
+    const buttons: ButtonOption[] = [
+      ...nav,
+      { id: 'menu:main', title: 'Menú', style: 'success' },
+      { id: 'cmds:exit', title: 'Cerrar', style: 'danger' },
     ];
-    const owner = [
-      '👑 <b>Solo dueño</b>',
-      '<code>/agregarvendedor &lt;id&gt; [nota]</code> — alta de seller',
-      '<code>/quitarvendedor &lt;id&gt;</code> — baja de seller',
-      '<code>/vendedores</code> — listar sellers',
-      '<code>/suspender &lt;id&gt; [nota]</code> — bloquear usuario',
-      '<code>/reactivar &lt;id&gt;</code> — quitar bloqueo',
-      '<code>/panico &lt;seller_id&gt;</code> — revocar seller (emergencia)',
-      '<code>/auditoria</code> — acciones recientes',
-    ];
-    const head = `🛠️ <b>Comandos de administración</b>\nTu rol: <b>${role}</b>`;
-    const blocks =
-      role === 'owner' ? [head, planes.join('\n'), owner.join('\n')] : [head, planes.join('\n')];
-    return Promise.resolve([this.text(ctx, blocks.join('\n\n'))]);
+    return {
+      kind: 'buttons',
+      to: ctx.senderId,
+      phoneNumberId: ctx.phoneNumberId,
+      html: true,
+      body,
+      buttons,
+      buttonLayout: nav.length ? [nav.length, 2] : [2],
+    };
   }
 
   // ── planes (owner + seller) ──
@@ -547,6 +580,52 @@ export function parseCommand(input: string): { cmd: string; args: string[] } | n
   if (at >= 0) cmd = cmd.slice(0, at);
   if (!cmd) return null;
   return { cmd, args: parts.slice(1) };
+}
+
+/** Páginas de /cmds según rol: owner ve 4 (planes, consultas, sellers, moderación),
+ * seller ve 2 (planes, consultas). */
+function cmdsPages(role: AdminRole): { title: string; lines: string[] }[] {
+  const planes = {
+    title: '📦 Planes',
+    lines: [
+      cmdLine('/activar', '&lt;id&gt; &lt;días|permanente&gt; [nota]', 'dar Premium'),
+      cmdLine('/extender', '&lt;id&gt; &lt;días&gt; [nota]', 'sumar días'),
+      cmdLine('/desactivar', '&lt;id&gt; [nota]', 'volver a Free'),
+    ],
+  };
+  const consultas = {
+    title: '📊 Consultas',
+    lines: [
+      cmdLine('/usuario', '&lt;id&gt;', 'ver ficha'),
+      cmdLine('/premium', '', 'listar Premium activos'),
+      cmdLine('/porvencer', '[días]', 'próximos vencimientos'),
+      cmdLine('/historial', '&lt;id&gt;', 'auditoría del usuario'),
+    ],
+  };
+  if (role !== 'owner') return [planes, consultas];
+  const sellers = {
+    title: '👑 Sellers',
+    lines: [
+      cmdLine('/agregarvendedor', '&lt;id&gt; [nota]', 'alta de seller'),
+      cmdLine('/quitarvendedor', '&lt;id&gt;', 'baja de seller'),
+      cmdLine('/vendedores', '', 'listar sellers'),
+    ],
+  };
+  const moderacion = {
+    title: '🛡️ Moderación',
+    lines: [
+      cmdLine('/suspender', '&lt;id&gt; [nota]', 'bloquear usuario'),
+      cmdLine('/reactivar', '&lt;id&gt;', 'quitar bloqueo'),
+      cmdLine('/panico', '&lt;seller_id&gt;', 'revocar seller (emergencia)'),
+      cmdLine('/auditoria', '', 'acciones recientes'),
+    ],
+  };
+  return [planes, consultas, sellers, moderacion];
+}
+
+function cmdLine(cmd: string, args: string, desc: string): string {
+  const head = args ? `<code>${cmd} ${args}</code>` : `<code>${cmd}</code>`;
+  return `• ${head}\n  <i>${desc}</i>`;
 }
 
 function parseId(raw: string | undefined): string | null {
