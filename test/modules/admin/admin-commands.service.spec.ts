@@ -92,6 +92,35 @@ describe('AdminCommandsService.handle', () => {
     expect(body).toMatch(/por tu rol/i);
   });
 
+  it('/ayuda (público) explica las funciones del bot', async () => {
+    const r = await svc.handle(ctx('/ayuda', '999'));
+    const body = (r![0] as { body: string }).body;
+    expect(body).toMatch(/anuncios futuros/i);
+    expect(body).toContain('/ent');
+    expect(body).toContain('/miplan');
+  });
+
+  it('/cmds del owner incluye el grupo "Solo dueño"', async () => {
+    const r = await svc.handle(ctx('/cmds', '1'));
+    const body = (r![0] as { body: string }).body;
+    expect(body).toMatch(/administración/i);
+    expect(body).toMatch(/Solo dueño/i);
+    expect(body).toContain('/agregarvendedor');
+  });
+
+  it('/cmds del seller NO muestra el grupo "Solo dueño"', async () => {
+    repo.findActiveSeller.mockResolvedValue({ telegramId: '500', active: true });
+    const r = await svc.handle(ctx('/cmds', '500'));
+    const body = (r![0] as { body: string }).body;
+    expect(body).toContain('/activar');
+    expect(body).not.toMatch(/Solo dueño/i);
+  });
+
+  it('/cmds de un no-autorizado → sigilo ([])', async () => {
+    const r = await svc.handle(ctx('/cmds', '999'));
+    expect(r).toEqual([]);
+  });
+
   it('no-autorizado tipea comando admin → sigilo ([]) + registra intento', async () => {
     const r = await svc.handle(ctx('/activar 555 30', '77'));
     expect(r).toEqual([]);

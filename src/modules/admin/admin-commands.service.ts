@@ -13,8 +13,9 @@ export interface AdminContext {
   input: string;
 }
 
-/** Comandos admin (no incluye el público `/miplan`). */
+/** Comandos admin (no incluye los públicos `/miplan` y `/ayuda`). */
 const ADMIN_COMMANDS = new Set([
+  'cmds',
   'activar',
   'extender',
   'desactivar',
@@ -70,6 +71,7 @@ export class AdminCommandsService {
     const { cmd, args } = parsed;
 
     if (cmd === 'miplan') return this.miplan(ctx);
+    if (cmd === 'ayuda' || cmd === 'help') return this.ayuda(ctx);
     if (!ADMIN_COMMANDS.has(cmd)) return null;
 
     const role = await this.roles.roleOf(ctx.senderId);
@@ -99,6 +101,8 @@ export class AdminCommandsService {
     role: AdminRole,
   ): Promise<OutboundMessage[]> {
     switch (cmd) {
+      case 'cmds':
+        return this.cmds(ctx, role);
       case 'activar':
         return this.activar(args, ctx, role);
       case 'extender':
@@ -152,6 +156,58 @@ export class AdminCommandsService {
     if (eff === 'suspended') lines.push('⚠️ Tu cuenta está suspendida.');
     lines.push(`🔔 Alertas: hasta <b>${cupo}</b>`);
     return [this.text(ctx, lines.join('\n'))];
+  }
+
+  /** Ayuda para usuarios: qué hace el bot (público). */
+  private ayuda(ctx: AdminContext): Promise<OutboundMessage[]> {
+    const body = [
+      '🤖 <b>DataSeace — ¿qué puedo hacer?</b>',
+      '',
+      '📅 <b>Ver anuncios futuros</b>',
+      'Anuncios de Contratación Futura (ACF) por objeto y entidad. Tocá el menú para empezar.',
+      '',
+      '🏢 <b>Consultar entidad</b>',
+      'Escribí <code>/ent &lt;nombre o RUC&gt;</code> para ver los datos de una entidad.',
+      '',
+      '🔔 <b>Alertas</b>',
+      'Te aviso cuando salgan nuevos anuncios según tus filtros <i>(próximamente)</i>.',
+      '',
+      '👤 <b>Tu cuenta</b>',
+      '<code>/miplan</code> — tu id, tu plan y tu cupo de alertas.',
+      '',
+      'Escribí <b>menú</b> en cualquier momento para volver al inicio.',
+    ].join('\n');
+    return Promise.resolve([this.text(ctx, body)]);
+  }
+
+  // ── comandos de administración (owner + seller) ──
+
+  /** Lista los comandos de admin disponibles según el rol del emisor. */
+  private cmds(ctx: AdminContext, role: AdminRole): Promise<OutboundMessage[]> {
+    const planes = [
+      '📦 <b>Planes</b> (owner y seller)',
+      '<code>/activar &lt;id&gt; &lt;días|permanente&gt; [nota]</code> — dar Premium',
+      '<code>/extender &lt;id&gt; &lt;días&gt; [nota]</code> — sumar días',
+      '<code>/desactivar &lt;id&gt; [nota]</code> — volver a Free',
+      '<code>/usuario &lt;id&gt;</code> — ver ficha',
+      '<code>/premium</code> — listar Premium activos',
+      '<code>/porvencer [días]</code> — próximos vencimientos',
+      '<code>/historial &lt;id&gt;</code> — auditoría del usuario',
+    ];
+    const owner = [
+      '👑 <b>Solo dueño</b>',
+      '<code>/agregarvendedor &lt;id&gt; [nota]</code> — alta de seller',
+      '<code>/quitarvendedor &lt;id&gt;</code> — baja de seller',
+      '<code>/vendedores</code> — listar sellers',
+      '<code>/suspender &lt;id&gt; [nota]</code> — bloquear usuario',
+      '<code>/reactivar &lt;id&gt;</code> — quitar bloqueo',
+      '<code>/panico &lt;seller_id&gt;</code> — revocar seller (emergencia)',
+      '<code>/auditoria</code> — acciones recientes',
+    ];
+    const head = `🛠️ <b>Comandos de administración</b>\nTu rol: <b>${role}</b>`;
+    const blocks =
+      role === 'owner' ? [head, planes.join('\n'), owner.join('\n')] : [head, planes.join('\n')];
+    return Promise.resolve([this.text(ctx, blocks.join('\n\n'))]);
   }
 
   // ── planes (owner + seller) ──

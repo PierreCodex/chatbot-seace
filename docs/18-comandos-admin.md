@@ -34,7 +34,11 @@
 
 ---
 
-## Comando público
+## Comandos públicos (cualquier usuario)
+
+### `/ayuda`
+Explica **qué hace el bot** para un usuario común: ver anuncios futuros, consultar
+entidad (`/ent`), alertas y `/miplan`. Es la ayuda de cara al cliente. (Alias: `/help`.)
 
 ### `/miplan`
 Muestra tu **id**, tu **plan** actual, el vencimiento (si es Premium) y tu cupo de alertas.
@@ -44,9 +48,19 @@ Es el comando que usa el cliente para **pasarte su id** cuando te paga.
 /miplan
 → 👤 Tu cuenta
   🆔 Tu id: 7079999767
-  📦 Plan: Free
-  🔔 Alertas: hasta 3
+  📦 Plan: Premium 💎
+  🛡️ Premium por tu rol de owner
+  🔔 Alertas: hasta 10
 ```
+
+---
+
+## Ayuda de administración
+
+### `/cmds`
+Lista **los comandos de administración** que tenés disponibles **según tu rol** (el owner
+ve todo, el seller ve solo los de planes). Es el "índice" para vos y tus sellers — los
+usuarios comunes no lo ven (sigilo). Para ellos está `/ayuda`.
 
 ---
 
