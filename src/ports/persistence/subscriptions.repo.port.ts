@@ -35,6 +35,9 @@ export interface SubscriptionsRepoPort {
   ): Promise<StoredSubscription[]>;
   /** Alertas activas (no vencidas) de una frecuencia dada (para el digest). */
   listActiveByFrequency(frequency: SubFrequency): Promise<StoredSubscription[]>;
+  /** Marca como `expired` las alertas activas cuya vigencia (`expires_at`) ya pasó.
+   * Devuelve cuántas se expiraron. */
+  expireOverdue(): Promise<number>;
   updateStatus(id: string, status: SubStatus): Promise<StoredSubscription>;
   markRun(id: string, hitCount: number, nextRunAt: Date | null): Promise<StoredSubscription>;
 }

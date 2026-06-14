@@ -249,8 +249,9 @@ inmutable.
      worker (`AlertsModule` + `MessagingModule`). `processes.upsertMany` ahora devuelve
      `insertedIds` (dispara solo por anuncios nuevos). Preview local: `pnpm alerts:preview`.
      8 tests.
-7. ⏳ **Cron de vencimiento** (`AdminRepo.expireOverdue` ya existe; falta el agendado +
-   notificación) + auto-expirar alertas (`subscriptions.expires_at`) + manejo de over-quota.
+7. ✅ **Job de expiración** (`ExpiryScheduler`, worker, 03:30 Lima): expira alertas
+   vencidas (`subscriptions.expires_at` → `expired`) y baja a Free los Premium vencidos
+   (`AdminRepo.expireOverdue` + aviso al usuario). 3 tests.
 8. ⏳ **`setMyCommands` por scope** (menú admin solo para owner/sellers).
 9. ⏳ **Confirmación inline** en destructivos (`/quitarvendedor` `/panico` `/suspender`).
 

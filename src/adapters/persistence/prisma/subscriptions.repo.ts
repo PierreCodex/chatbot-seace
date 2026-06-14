@@ -78,6 +78,14 @@ export class PrismaSubscriptionsRepo implements SubscriptionsRepoPort {
     });
   }
 
+  async expireOverdue(): Promise<number> {
+    const r = await this.prisma.subscription.updateMany({
+      where: { status: 'active', expiresAt: { not: null, lt: new Date() } },
+      data: { status: 'expired' },
+    });
+    return r.count;
+  }
+
   updateStatus(id: string, status: SubStatus): Promise<StoredSubscription> {
     return this.prisma.subscription.update({ where: { id }, data: { status } });
   }

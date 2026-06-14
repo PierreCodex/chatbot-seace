@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MessagingModule } from '../../adapters/messaging/messaging.module';
 import { AlertNotifierService } from './alert-notifier.service';
 import { AlertPresenter } from './alert.presenter';
+import { ExpiryScheduler } from './expiry.scheduler';
 import { HitDetectionService } from './hit-detection.service';
 
 /**
@@ -11,7 +12,7 @@ import { HitDetectionService } from './hit-detection.service';
  */
 @Module({
   imports: [MessagingModule.register()],
-  providers: [HitDetectionService, AlertNotifierService, AlertPresenter],
+  providers: [HitDetectionService, AlertNotifierService, AlertPresenter, ExpiryScheduler],
   exports: [HitDetectionService, AlertNotifierService],
 })
 export class AlertsModule {}

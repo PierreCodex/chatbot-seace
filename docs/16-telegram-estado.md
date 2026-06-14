@@ -98,9 +98,9 @@
   filtros; frecuencia + duración gated por plan) + "Mis alertas".
 - ✅ `HitDetectionService` (matchea anuncios nuevos del crawl ↔ alertas) +
   `AlertNotifierService` (inmediata `hourly` + digest diario/semanal) en el worker.
+- ✅ Job de expiración (`ExpiryScheduler`, 03:30 Lima): expira alertas vencidas + baja a
+  Free los Premium vencidos con aviso.
 - Preview local sin esperar a SEACE: `pnpm alerts:preview -- --id=<telegram_id>`.
-- ⏳ Pendiente: job de expiración de alertas (`expires_at` → `expired`) + auto-downgrade
-  premium vencido (fase 7).
 
 > **Telegram Stars: descartado.** El cobro es manual/externo; el plan se activa con
 > comandos propios. Ver [17](./17-roles-permisos-alertas.md).
