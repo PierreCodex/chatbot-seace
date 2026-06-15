@@ -93,7 +93,7 @@ export class AcfResultsPresenter {
       to: ctx.phoneNumber,
       phoneNumberId: ctx.phoneNumberId,
       html: true,
-      body: cardTelegram(p),
+      body: `${DASH}\n${cardTelegram(p)}`,
     }));
 
     const pdf: OutboundMessage[] = hasPdf
@@ -143,7 +143,7 @@ export class AcfResultsPresenter {
       total === 1
         ? 'Se encontró <code>1</code> resultado'
         : `Se encontraron <code>${total}</code> resultados`;
-    const body = `${found}   ·   <code>${index + 1}/${pages}</code>\n${cardTelegram(process)}`;
+    const body = `<blockquote>${found}   ·   <code>${index + 1}/${pages}</code></blockquote>\n${cardTelegram(process)}`;
 
     const nav: ButtonOption[] = [];
     if (index > 0) {
@@ -287,7 +287,7 @@ function cardTelegram(p: StoredProcess): string {
 
   // Bullet animado antes de cada campo + interlineado (línea en blanco entre campos).
   const bulleted = fields.map((f) => `${tgEmoji('dot')} ${f}`);
-  return `${DASH}\n${head.join(' · ')}\n\n${bulleted.join('\n\n')}`;
+  return `${head.join(' · ')}\n\n${bulleted.join('\n\n')}`;
 }
 
 function formatAcfCard(p: StoredProcess): string {
