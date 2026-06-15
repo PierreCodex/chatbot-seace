@@ -1,17 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  TG_EFFECT,
-  TG_EMOJI,
-  tgAnuncios,
-  tgDivider,
-  tgEmoji,
-} from '../../../common/telegram-emoji';
+import { TG_EFFECT, TG_EMOJI, tgAnuncios, tgEmoji } from '../../../common/telegram-emoji';
 import type { Env } from '../../../config/env.schema';
 import type { OutboundMessage } from '../../../ports/messaging.port';
 import type { StoredProcess } from '../../../ports/persistence/processes.repo.port';
 
 const MAX_CARDS = 5;
+// Separador de guiones (en vez del divisor animado ➿) para los resultados ACF.
+const DASH = '- - - - - - - - - - - - - - - - - - - - -';
 
 export interface AcfPresentContext {
   phoneNumber: string;
@@ -70,19 +66,18 @@ export class AcfResultsPresenter {
   private telegram(ctx: AcfPresentContext): OutboundMessage[] {
     const top = ctx.processes.slice(0, MAX_CARDS);
     const hasPdf = ctx.totalFound > MAX_CARDS && !!ctx.pdfUrl;
-    // Cabecera con la palabra ANUNCIOS en emojis-letra animados (diseño en
-    // blockquote: separador · "🆘 N ANUNCIOS" · separador · descripción).
-    const div = tgDivider(10);
+    // Cabecera: separador de guiones · "🆘 N ANUNCIOS" (letras animadas) ·
+    // separador · descripción. Sin blockquote (el fondo confundía).
     const title = `${tgEmoji('anunciosHdr')}  <b>${ctx.totalFound}</b>  ${tgAnuncios()}`;
     const desc =
       ctx.totalFound <= MAX_CARDS
         ? ''
         : hasPdf
-          ? 'Te muestro los 5 más recientes y te adjunto el <b>PDF</b> con todos ⬇️'
+          ? `Te muestro los 5 más recientes y te adjunto el <b>PDF</b> con todos ${tgEmoji('elige')}`
           : `Te muestro los ${top.length} más recientes:`;
     const headerBody = desc
-      ? `<blockquote>${div}\n${title}\n${div}\n${desc}\n${div}</blockquote>`
-      : `<blockquote>${div}\n${title}\n${div}</blockquote>`;
+      ? `${DASH}\n${title}\n${DASH}\n${desc}\n${DASH}`
+      : `${DASH}\n${title}\n${DASH}`;
 
     const header: OutboundMessage = {
       kind: 'text',
@@ -181,29 +176,30 @@ function text(ctx: AcfPresentContext, body: string): OutboundMessage {
   return { kind: 'text', to: ctx.phoneNumber, phoneNumberId: ctx.phoneNumberId, body };
 }
 
-/** Tarjeta Telegram: separador + objeto·tipo + blockquote expandable con campos. */
+/** Tarjeta Telegram: separador de guiones + objeto·tipo + campos (labels en
+ * MAYÚSCULA), sin blockquote (sin barra/fondo de color). */
 function cardTelegram(p: StoredProcess): string {
   const acf = p.acf;
   const head: string[] = [];
-  if (p.objeto) head.push(`🏗️ <b>${esc(capitalize(p.objeto.replace('_', ' ')))}</b>`);
+  if (p.objeto) head.push(`🏗️ <b>${esc(p.objeto.replace('_', ' ').toUpperCase())}</b>`);
   if (acf?.tipoSeleccion) head.push(`<i>${esc(acf.tipoSeleccion)}</i>`);
 
-  const fields: string[] = [`🏛️ <b>Entidad:</b> ${esc(p.entityNombre)}`];
-  if (p.descripcion) fields.push(`📋 <b>Objeto:</b> ${esc(truncate(p.descripcion, 220))}`);
+  const fields: string[] = [`🏛️ <b>ENTIDAD:</b> ${esc(p.entityNombre)}`];
+  if (p.descripcion) fields.push(`📋 <b>OBJETO:</b> ${esc(truncate(p.descripcion, 220))}`);
   const cui = extractCui(acf?.alcance);
   if (cui) fields.push(`🔖 <b>CUI:</b> <code>${esc(cui)}</code>`);
   if (p.fechaPublicacion) {
-    fields.push(`📅 <b>Publicado:</b> <code>${formatDate(p.fechaPublicacion)}</code>`);
+    fields.push(`📅 <b>PUBLICADO:</b> <code>${formatDate(p.fechaPublicacion)}</code>`);
   }
   if (acf?.fechaAproxConv) {
-    fields.push(`🗓️ <b>Convocatoria:</b> <code>~${formatDate(acf.fechaAproxConv, 'UTC')}</code>`);
+    fields.push(`🗓️ <b>CONVOCATORIA:</b> <code>~${formatDate(acf.fechaAproxConv, 'UTC')}</code>`);
   }
-  if (acf?.plazoDias != null) fields.push(`⏱️ <b>Plazo:</b> <code>${acf.plazoDias} días</code>`);
+  if (acf?.plazoDias != null) fields.push(`⏱️ <b>PLAZO:</b> <code>${acf.plazoDias} días</code>`);
   if (acf?.cantidad != null) {
-    fields.push(`🔢 <b>Cantidad:</b> <code>${esc(String(acf.cantidad))}</code>`);
+    fields.push(`🔢 <b>CANTIDAD:</b> <code>${esc(String(acf.cantidad))}</code>`);
   }
 
-  return `${tgDivider(8)}\n${head.join(' · ')}\n<blockquote expandable>${fields.join('\n')}</blockquote>`;
+  return `${DASH}\n${head.join(' · ')}\n${fields.join('\n')}`;
 }
 
 function formatAcfCard(p: StoredProcess): string {

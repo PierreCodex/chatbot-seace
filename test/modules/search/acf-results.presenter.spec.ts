@@ -134,7 +134,8 @@ describe('AcfResultsPresenter', () => {
       }
       const card = msgs[1];
       if (card.kind === 'text') {
-        expect(card.body).toContain('<blockquote expandable>');
+        expect(card.body).toContain('<b>ENTIDAD:</b>'); // labels en mayúscula
+        expect(card.body).not.toContain('<blockquote'); // sin barra/fondo de color
         expect(card.body).toContain('<code>300 días</code>');
         expect(card.body).toContain('PUQUINA');
       }
