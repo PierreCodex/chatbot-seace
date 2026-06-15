@@ -133,17 +133,13 @@ export class SubscribeFlow implements Flow {
       eff === 'premium'
         ? `🔔 Llegaste al límite de tu plan <b>Premium</b> (${max} alertas).\n\nBorrá una en /misalertas.`
         : `🔔 Llegaste al límite de tu plan <b>Free</b> (${max} alertas).\n\nBorrá una en /misalertas o actualizá a Premium para tener 10.`;
+    // Botones transparentes (sin `style`), con emoji en el título.
     const buttons: ButtonOption[] =
       eff === 'premium'
-        ? [{ id: 'menu:main', title: 'Menú', style: 'success' }]
+        ? [{ id: 'menu:main', title: '🏠 Menú' }]
         : [
-            {
-              id: 'premium:info',
-              title: 'Ver planes Premium',
-              url: PREMIUM_CONTACT_URL,
-              style: 'primary',
-            },
-            { id: 'menu:main', title: 'Menú', style: 'success' },
+            { id: 'premium:info', title: '💎 Quiero Premium', url: PREMIUM_CONTACT_URL },
+            { id: 'menu:main', title: '🏠 Menú' },
           ];
     return {
       messages: [
