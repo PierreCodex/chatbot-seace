@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TG_EFFECT, TG_EMOJI, tgDivider, tgEmoji } from '../../../common/telegram-emoji';
+import {
+  TG_EFFECT,
+  TG_EMOJI,
+  tgAnuncios,
+  tgDivider,
+  tgEmoji,
+} from '../../../common/telegram-emoji';
 import type { Env } from '../../../config/env.schema';
 import type { OutboundMessage } from '../../../ports/messaging.port';
 import type { StoredProcess } from '../../../ports/persistence/processes.repo.port';
@@ -64,12 +70,14 @@ export class AcfResultsPresenter {
   private telegram(ctx: AcfPresentContext): OutboundMessage[] {
     const top = ctx.processes.slice(0, MAX_CARDS);
     const hasPdf = ctx.totalFound > MAX_CARDS && !!ctx.pdfUrl;
+    // Cabecera con la palabra ANUNCIOS en emojis-letra animados.
+    const countLine = `${tgEmoji('anunciosHdr')} <b>${ctx.totalFound}</b> ${tgAnuncios()} <b>futuros</b>`;
     const headerBody =
       ctx.totalFound <= MAX_CARDS
-        ? `${tgEmoji('search')} <b>${ctx.totalFound} anuncio${ctx.totalFound === 1 ? '' : 's'} de contratación futura</b>`
+        ? countLine
         : hasPdf
-          ? `${tgEmoji('search')} <b>${ctx.totalFound} anuncios futuros</b>\nTe muestro los ${top.length} más recientes y te adjunto el <b>PDF</b> con todos 👇`
-          : `${tgEmoji('search')} <b>${ctx.totalFound} anuncios futuros</b>\nTe muestro los ${top.length} más recientes:`;
+          ? `${countLine}\nTe muestro los ${top.length} más recientes y te adjunto el <b>PDF</b> con todos 👇`
+          : `${countLine}\nTe muestro los ${top.length} más recientes:`;
 
     const header: OutboundMessage = {
       kind: 'text',

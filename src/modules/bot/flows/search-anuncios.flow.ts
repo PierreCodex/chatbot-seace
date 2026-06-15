@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { tgAnuncios, tgDivider, tgEmoji, TG_EMOJI } from '../../../common/telegram-emoji';
+import { tgDivider, tgEmoji, TG_EMOJI } from '../../../common/telegram-emoji';
 import type { Env } from '../../../config/env.schema';
 import type { EntityLookupMatch } from '../../../ports/entity-lookup.port';
 import { FILES_PORT, type FilesPort } from '../../../ports/files.port';
@@ -393,7 +393,7 @@ export class SearchAnunciosFlow implements Flow {
         phoneNumberId: ctx.phoneNumberId,
         html: true,
         body:
-          `${tgEmoji('anunciosHdr')} <b>Ver</b> ${tgAnuncios()} <b>futuros</b>\n` +
+          `${tgEmoji('anunciosHdr')} <b>Ver anuncios futuros</b>\n` +
           tgDivider(8) +
           '\n¿Qué <b>tipo de contratación</b> te interesa?',
         buttons: [

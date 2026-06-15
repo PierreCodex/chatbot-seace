@@ -71,15 +71,17 @@ export function tgDivider(segments = 10): string {
 }
 
 // La palabra "ANUNCIOS" en emojis-letra animados (la N se repite en pos. 2 y 4).
+// El placeholder DEBE ser un emoji válido (Telegram rechaza letras ASCII con
+// ENTITY_TEXT_INVALID) → usamos indicadores regionales 🇦🇳… como fallback.
 const ANUNCIOS_LETTERS: { id: string; ch: string }[] = [
-  { id: '5350358953832230891', ch: 'A' },
-  { id: '5350695030728173619', ch: 'N' },
-  { id: '5359351545903197932', ch: 'U' },
-  { id: '5350695030728173619', ch: 'N' },
-  { id: '5350493021236375754', ch: 'C' },
-  { id: '5350376442939059426', ch: 'I' },
-  { id: '5350832748854520730', ch: 'O' },
-  { id: '5350473255796879409', ch: 'S' },
+  { id: '5350358953832230891', ch: '🇦' },
+  { id: '5350695030728173619', ch: '🇳' },
+  { id: '5359351545903197932', ch: '🇺' },
+  { id: '5350695030728173619', ch: '🇳' },
+  { id: '5350493021236375754', ch: '🇨' },
+  { id: '5350376442939059426', ch: '🇮' },
+  { id: '5350832748854520730', ch: '🇴' },
+  { id: '5350473255796879409', ch: '🇸' },
 ];
 
 /** "ANUNCIOS" en emojis-letra animados (texto/caption con html:true). */

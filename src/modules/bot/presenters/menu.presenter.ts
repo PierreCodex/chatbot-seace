@@ -69,9 +69,14 @@ export class MenuPresenter {
         `${tgEmoji('dot')} 🔔 <b>Mis alertas</b> · ${tgEmoji('premium')} Premium <i>(pronto)</i>\n` +
         '<i>Avisos automáticos a tu medida.</i>',
       buttons: [
-        { id: 'anuncios', title: '📅 Ver anuncios futuros', style: 'primary' },
-        { id: 'entity', title: '🔎 Consultar entidad' },
-        { id: 'subscriptions', title: '🔔 Mis alertas' },
+        {
+          id: 'anuncios',
+          title: 'Ver anuncios futuros',
+          style: 'primary',
+          iconCustomEmojiId: TG_EMOJI.anunciosBtn.id,
+        },
+        { id: 'entity', title: 'Consultar entidad', iconCustomEmojiId: TG_EMOJI.search.id },
+        { id: 'subscriptions', title: 'Mis alertas', iconCustomEmojiId: TG_EMOJI.alert.id },
         { id: 'menu:main', title: 'Menú', style: 'success', iconCustomEmojiId: TG_EMOJI.back.id },
       ],
       buttonLayout: [1, 2, 1],
