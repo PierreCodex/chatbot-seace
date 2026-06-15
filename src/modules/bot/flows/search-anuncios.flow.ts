@@ -329,6 +329,10 @@ export class SearchAnunciosFlow implements Flow {
       // en el estado para que `acfpage:N` los recorra.
       if (this.isTelegram) {
         const ids = outcome.processes.slice(0, ACF_PAGE_COUNT).map((p) => p.id);
+        const header = this.resultsPresenter.resultsHeader({
+          to: ctx.phoneNumber,
+          phoneNumberId: ctx.phoneNumberId,
+        });
         const page0 = this.resultsPresenter.pageMessage({
           to: ctx.phoneNumber,
           phoneNumberId: ctx.phoneNumberId,
@@ -339,7 +343,7 @@ export class SearchAnunciosFlow implements Flow {
           pdfUrl,
         });
         return {
-          messages: [page0],
+          messages: [header, page0],
           navigation: 'replace',
           nextFlowId: 'main-menu',
           nextStep: 'awaiting-selection',

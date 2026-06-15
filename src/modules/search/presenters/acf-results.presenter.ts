@@ -117,6 +117,18 @@ export class AcfResultsPresenter {
    * In-place (el handler reescribe el mismo mensaje). `total` = total de anuncios
    * encontrados; `pages` = cuántos navegables hay (los que tenemos en mano).
    */
+  /** Mensaje decorativo (se envía una vez, arriba de la lista): 🆘 ANUNCIOS. */
+  resultsHeader(args: { to: string; phoneNumberId: string }): OutboundMessage {
+    return {
+      kind: 'text',
+      to: args.to,
+      phoneNumberId: args.phoneNumberId,
+      html: true,
+      effectId: TG_EFFECT.celebrate,
+      body: `${tgEmoji('anunciosHdr')}  ${tgAnuncios()}`,
+    };
+  }
+
   pageMessage(args: {
     to: string;
     phoneNumberId: string;
@@ -127,8 +139,11 @@ export class AcfResultsPresenter {
     pdfUrl?: string;
   }): OutboundMessage {
     const { to, phoneNumberId, process, index, pages, total, pdfUrl } = args;
-    const header = `${tgEmoji('anunciosHdr')}  <b>${total}</b>  ${tgAnuncios()}   ·   <code>${index + 1}/${pages}</code>`;
-    const body = `${DASH}\n${header}\n${cardTelegram(process)}`;
+    const found =
+      total === 1
+        ? 'Se encontró <code>1</code> resultado'
+        : `Se encontraron <code>${total}</code> resultados`;
+    const body = `${found}   ·   <code>${index + 1}/${pages}</code>\n${cardTelegram(process)}`;
 
     const nav: ButtonOption[] = [];
     if (index > 0) nav.push({ id: `acfpage:${index - 1}`, title: '◀ Anterior', style: 'primary' });
@@ -151,7 +166,6 @@ export class AcfResultsPresenter {
       to,
       phoneNumberId,
       html: true,
-      ...(index === 0 ? { effectId: TG_EFFECT.celebrate } : {}),
       body,
       buttons,
       buttonLayout: layout,
@@ -230,8 +244,10 @@ function cardTelegram(p: StoredProcess): string {
   if (p.objeto) head.push(`🏗️ <b>${esc(p.objeto.replace('_', ' ').toUpperCase())}</b>`);
   if (acf?.tipoSeleccion) head.push(`<i>${esc(acf.tipoSeleccion)}</i>`);
 
-  const fields: string[] = [`🏛️ <b>ENTIDAD:</b> ${esc(p.entityNombre)}`];
-  if (p.descripcion) fields.push(`📋 <b>OBJETO:</b> ${esc(truncate(p.descripcion, 220))}`);
+  const fields: string[] = [`🏛️ <b>ENTIDAD:</b> <code>${esc(p.entityNombre)}</code>`];
+  if (p.descripcion) {
+    fields.push(`📋 <b>OBJETO:</b> <code>${esc(truncate(p.descripcion, 220))}</code>`);
+  }
   const cui = extractCui(acf?.alcance);
   if (cui) fields.push(`🔖 <b>CUI:</b> <code>${esc(cui)}</code>`);
   if (p.fechaPublicacion) {
