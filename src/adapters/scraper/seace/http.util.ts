@@ -14,8 +14,15 @@ const DEFAULT_TIMEOUT_MS = 12_000; // SEACE suele responder en 1-2s; 12s es holg
 const DEFAULT_RETRIES = 1; // 1 reintento ante timeout/red (cubre el bache puntual)
 const RETRY_DELAY_MS = 400;
 
-// ProxyAgent (undici) creado una vez si hay PROXY_URL. `http://user:pass@host:port`.
-const PROXY_DISPATCHER = process.env.PROXY_URL ? new ProxyAgent(process.env.PROXY_URL) : undefined;
+// ProxyAgent (undici) creado una vez si hay PROXY_URL. Acepta `user:pass@host:port`
+// (se le antepone `http://`) o una URL completa `http://user:pass@host:port`.
+function resolveProxyUrl(): string | undefined {
+  const raw = process.env.PROXY_URL?.trim();
+  if (!raw) return undefined;
+  return /^[a-z]+:\/\//i.test(raw) ? raw : `http://${raw}`;
+}
+const proxyUrl = resolveProxyUrl();
+const PROXY_DISPATCHER = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
 
 /** SEACE no respondió dentro del timeout (la petición se abortó). */
 export class SeaceTimeoutError extends Error {
