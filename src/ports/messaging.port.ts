@@ -27,6 +27,8 @@ export interface InboundMessage {
   // Id del mensaje que contenía el botón pulsado (Telegram callback_query). Permite
   // editar/borrar ese mensaje para navegación en el mismo espacio. WhatsApp: undefined.
   sourceMessageId?: string;
+  // Nombre del remitente (Telegram first_name) para personalizar la bienvenida.
+  senderName?: string;
   timestamp: string;
   isNewConversation: boolean;
 }

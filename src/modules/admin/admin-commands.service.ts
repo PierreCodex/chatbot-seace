@@ -89,6 +89,7 @@ export class AdminCommandsService {
     const { cmd, args } = parsed;
 
     if (cmd === 'miplan') return { messages: await this.miplan(ctx) };
+    if (cmd === 'register' || cmd === 'registro') return { messages: await this.register(ctx) };
     if (cmd === 'ayuda' || cmd === 'help') return { messages: await this.ayuda(ctx) };
     if (!ADMIN_COMMANDS.has(cmd)) return null;
 
@@ -193,6 +194,29 @@ export class AdminCommandsService {
     if (eff === 'suspended') lines.push('⚠️ Tu cuenta está suspendida.');
     lines.push(`🔔 Alertas: hasta <b>${cupo}</b>`);
     return [this.text(ctx, lines.join('\n'))];
+  }
+
+  /** Onboarding (público): confirma el registro (automático) y muestra el plan. */
+  private async register(ctx: AdminContext): Promise<OutboundMessage[]> {
+    const u = await this.repo.findUser(ctx.senderId);
+    const role = await this.roles.roleOf(ctx.senderId);
+    const eff = u
+      ? this.plan.getEffectivePlan(u, new Date(), role !== null)
+      : role
+        ? 'premium'
+        : 'free';
+    const cupo = this.plan.maxAlertas(eff);
+    const body = [
+      '🔰 <b>¡Bienvenido a DataSeace!</b>',
+      'Ya estás registrado ✅',
+      '',
+      `📦 Tu plan: <b>${planLabel(eff)}</b> — hasta <b>${cupo}</b> alertas activas.`,
+      '',
+      '💎 <b>Premium</b> suma: 10 alertas, aviso <b>inmediato</b> al detectar y mayor duración.',
+      '',
+      'Usá /menu para buscar anuncios y crear tus alertas 🔔',
+    ].join('\n');
+    return [this.text(ctx, body)];
   }
 
   /** Ayuda para usuarios: qué hace el bot (público). */

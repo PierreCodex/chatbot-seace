@@ -42,7 +42,11 @@ export class ConversationService {
     this.messaging.sendChatAction?.(inbound.phoneNumber, 'typing').catch(() => {});
 
     // Upsert user por identidad de canal (teléfono en WA, chat_id en Telegram).
-    const user = await this.waUsers.upsertByChannel(this.channel, inbound.phoneNumber);
+    const user = await this.waUsers.upsertByChannel(
+      this.channel,
+      inbound.phoneNumber,
+      inbound.senderName,
+    );
 
     // Load or create conversation state
     let state = await this.store.get(inbound.phoneNumber);
@@ -106,6 +110,7 @@ export class ConversationService {
       state,
       input,
       isNewConversation,
+      displayName: user.displayName ?? inbound.senderName ?? null,
       notify: (message) => this.send(message),
     };
 

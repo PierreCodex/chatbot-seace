@@ -6,6 +6,12 @@ import type { OutboundMessage } from '../../../ports/messaging.port';
 
 /** Banner de bienvenida (Telegram lo envía como foto; Kapso lo ignora). */
 const WELCOME_BANNER = 'assets/banner.png';
+/** Separador de la bienvenida (estilo "====" del diseño propuesto). */
+const WELCOME_SEP = '═══════════════';
+
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 /**
  * Menú principal del MVP (ACF-first). Ver docs/06-whatsapp-ux.md §10.2 y la
@@ -33,12 +39,20 @@ export class MenuPresenter {
   }
 
   /** Bienvenida (primer contacto): Telegram → [banner, menú]; WhatsApp → [list]. */
-  welcome(phoneNumberId: string, to: string): OutboundMessage[] {
+  welcome(phoneNumberId: string, to: string, displayName?: string | null): OutboundMessage[] {
     if (!this.isTelegram) return [this.whatsapp(phoneNumberId, to)];
-    return [this.telegramBanner(phoneNumberId, to), this.telegramMain(phoneNumberId, to)];
+    return [
+      this.telegramBanner(phoneNumberId, to, displayName),
+      this.telegramMain(phoneNumberId, to),
+    ];
   }
 
-  private telegramBanner(phoneNumberId: string, to: string): OutboundMessage {
+  private telegramBanner(
+    phoneNumberId: string,
+    to: string,
+    displayName?: string | null,
+  ): OutboundMessage {
+    const hola = displayName ? `Hola <b>${escHtml(displayName)}</b>` : '¡Hola!';
     return {
       kind: 'text',
       to,
@@ -46,8 +60,17 @@ export class MenuPresenter {
       html: true,
       imagePath: WELCOME_BANNER,
       body:
-        '<b>DataSeace</b> · Contrataciones del Estado 🇵🇪\n' +
-        '<i>Monitoreo y alertas del SEACE, directo en Telegram.</i>',
+        `${hola}, bienvenido a tu bot favorito 🤖\n` +
+        `${WELCOME_SEP}\n` +
+        `Somos <b>DataSeace</b> 🇵🇪\n` +
+        `<i>Monitoreo y alertas del SEACE, directo en Telegram</i> ${tgEmoji('tgLogo')}\n` +
+        `${WELCOME_SEP}\n` +
+        `⌨️ <b>COMANDOS BÁSICOS</b>\n\n` +
+        `🔰 Regístrate con /register <i>(3 alertas gratis)</i>\n` +
+        `⚒️ Menú de funciones /menu\n` +
+        `📋 Tu perfil /miplan\n` +
+        `${WELCOME_SEP}\n` +
+        `${tgEmoji('ownerTag')} ➡️ Owner: @pierrecodex ${tgEmoji('ownerBadge')}`,
     };
   }
 

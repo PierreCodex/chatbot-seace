@@ -19,6 +19,8 @@ export interface FlowContext {
   /** True en el primer contacto (conversación nueva) o ante `/start`. Lo usa el
    * menú para mostrar el banner de bienvenida solo la primera vez. */
   isNewConversation?: boolean;
+  /** Nombre del usuario (Telegram first_name) para personalizar la bienvenida. */
+  displayName?: string | null;
   /**
    * Envía un mensaje **intermedio** ya mismo (antes de que el flow termine), para
    * dar feedback durante operaciones lentas (ej. "🔎 Consultando…" antes de una

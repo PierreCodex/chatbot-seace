@@ -98,7 +98,7 @@ export class MainMenuFlow implements Flow {
         // Primer contacto / `/start` → banner + menú. Volver al menú → desvanece el
         // mensaje actual (replace) y muestra el menú fresco.
         const messages = ctx.isNewConversation
-          ? this.presenter.welcome(ctx.phoneNumberId, ctx.phoneNumber)
+          ? this.presenter.welcome(ctx.phoneNumberId, ctx.phoneNumber, ctx.displayName)
           : [this.presenter.build(ctx.phoneNumberId, ctx.phoneNumber)];
         return {
           messages,

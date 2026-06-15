@@ -12,8 +12,10 @@ import { RolesService } from './roles.service';
 // Menú público (lo ve cualquier usuario).
 const PUBLIC: BotCommandSpec[] = [
   { command: 'start', description: 'Iniciar y ver el menú' },
-  { command: 'ayuda', description: '¿Qué puede hacer el bot?' },
+  { command: 'register', description: 'Registrarte y ver tu plan' },
+  { command: 'menu', description: 'Menú de funciones' },
   { command: 'miplan', description: 'Ver tu plan y tus alertas' },
+  { command: 'ayuda', description: '¿Qué puede hacer el bot?' },
   { command: 'ent', description: 'Consultar una entidad' },
 ];
 

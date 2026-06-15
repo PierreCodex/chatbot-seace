@@ -41,6 +41,10 @@ export const TG_EMOJI = {
   noEntidades: { id: '5202216593966244027', fallback: '🔍' },
   elige: { id: '5406745015365943482', fallback: '👇' },
   anunciosHdr: { id: '5213285132709929474', fallback: '🗓️' },
+  // Bienvenida /start
+  tgLogo: { id: '5244763347454300958', fallback: '✨' },
+  ownerTag: { id: '5316784240996654202', fallback: '👨‍💻' },
+  ownerBadge: { id: '5370941588165893740', fallback: '👑' },
 } satisfies Record<string, CustomEmoji>;
 
 export type TgEmojiName = keyof typeof TG_EMOJI;
