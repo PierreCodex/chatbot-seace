@@ -10,10 +10,11 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, { bufferLogs: false, rawBody: true });
   const config = app.get(ConfigService<Env, true>);
-  const port = config.get('API_PORT', { infer: true });
+  // Railway/PaaS inyectan el puerto vía $PORT; si no, usamos API_PORT.
+  const port = Number(process.env.PORT) || config.get('API_PORT', { infer: true });
 
   app.enableShutdownHooks();
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   new Logger('Bootstrap').log(`API service listening on http://localhost:${port}`);
 }

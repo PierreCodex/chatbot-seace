@@ -22,6 +22,7 @@ Diseño técnico inicial del chatbot WhatsApp para consultar contrataciones púb
 | 16 | [Telegram — estado](./16-telegram-estado.md) | **Estado vivo**: qué está implementado (canal, identidad, menús, flujos, tarjetas, navegación in-place, typing, efectos) vs pendiente (motor de alertas, mejoras a evaluar) + mapa de archivos |
 | 17 | [Roles, permisos y comandos admin](./17-roles-permisos-alertas.md) | **Diseño + estado**: roles owner/seller (env vs BD), planes free/premium, cobro manual (sin Stars), anti-escalamiento, plan efectivo + vencimientos, auditoría inmutable, fases 1–5 implementadas + mapa de archivos |
 | 18 | [Comandos del bot — guía práctica](./18-comandos-admin.md) | **Cheatsheet operativo**: cada comando (`/miplan` `/activar` `/extender` `/usuario` `/agregarvendedor` `/panico`…) con sintaxis, ejemplos, quién puede usarlo, flujo típico de cobro y reglas que el bot hace cumplir |
+| 19 | [Deploy en Railway](./19-deploy-railway.md) | Despliegue para el test en vivo: 1 `Dockerfile` (con Chromium) + 2 servicios (api/worker) + Redis plugin + Supabase externo; variables de entorno por servicio, `setWebhook` y verificación |
 
 ## Decisiones de stack confirmadas
 

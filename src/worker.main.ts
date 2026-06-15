@@ -10,10 +10,11 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(WorkerModule, { bufferLogs: false });
   const config = app.get(ConfigService<Env, true>);
-  const port = config.get('WORKER_PORT', { infer: true });
+  // Railway inyecta $PORT por servicio; si no, usamos WORKER_PORT.
+  const port = Number(process.env.PORT) || config.get('WORKER_PORT', { infer: true });
 
   app.enableShutdownHooks();
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   new Logger('Bootstrap').log(`Worker service listening on http://localhost:${port}`);
 }

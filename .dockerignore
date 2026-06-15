@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+coverage
+.vscode
+.idea
+docs
+test
+**/*.spec.ts
+# Imágenes sueltas del working dir (NO afecta assets/banner.png, que sí va a la imagen).
+/*.png
+/*.jpg
+/*.jpeg
