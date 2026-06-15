@@ -29,8 +29,11 @@
   `@userinfobot`).
 - `[...]` = argumento **opcional**. `<...>` = **obligatorio**.
 - `nota` = texto libre al final (queda guardado en la auditoría; ej. `pago yape 14/06`).
-- Los comandos admin **no responden** a usuarios sin permiso (sigilo). El menú nativo
-  de comandos tampoco se los muestra.
+- Los comandos admin **no responden** a usuarios sin permiso (sigilo).
+- **Menú nativo "/" por rol** (`setMyCommands`): cada quien ve solo SUS comandos —
+  público (start/ayuda/miplan/ent), seller (+ planes), owner (+ todo). Se sincroniza al
+  arrancar el bot y al alta/baja de un seller. *(Si recién te hicieron seller y no ves los
+  comandos nuevos, reabrí el chat.)*
 
 ---
 

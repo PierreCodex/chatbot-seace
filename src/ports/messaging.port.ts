@@ -80,6 +80,15 @@ export type OutboundMessage =
       effectId?: string;
     };
 
+/** Comando del menú nativo de Telegram (setMyCommands). */
+export interface BotCommandSpec {
+  command: string;
+  description: string;
+}
+
+/** Alcance del menú de comandos: global (default) o un chat puntual. */
+export type CommandScope = { type: 'default' } | { type: 'chat'; chatId: string };
+
 export interface MessagingPort {
   send(message: OutboundMessage): Promise<{ messageId: string }>;
   parseWebhook(raw: unknown): InboundMessage[];
@@ -90,6 +99,8 @@ export interface MessagingPort {
   deleteMessage?(to: string, messageId: string): Promise<void>;
   /** Indicador "escribiendo…" (Telegram sendChatAction). Fire-and-forget. */
   sendChatAction?(to: string, action: 'typing' | 'upload_document'): Promise<void>;
+  /** Define el menú de comandos para un scope (Telegram setMyCommands). Kapso lo omite. */
+  setMyCommands?(commands: BotCommandSpec[], scope: CommandScope): Promise<void>;
 }
 
 export const MESSAGING_PORT = Symbol('MESSAGING_PORT');

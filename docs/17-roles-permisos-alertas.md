@@ -252,7 +252,10 @@ inmutable.
 7. ✅ **Job de expiración** (`ExpiryScheduler`, worker, 03:30 Lima): expira alertas
    vencidas (`subscriptions.expires_at` → `expired`) y baja a Free los Premium vencidos
    (`AdminRepo.expireOverdue` + aviso al usuario). 3 tests.
-8. ⏳ **`setMyCommands` por scope** (menú admin solo para owner/sellers).
+8. ✅ **`setMyCommands` por scope** (`BotCommandsService`): menú nativo "/" público por
+   defecto (start/ayuda/miplan/ent), y por-chat para owner (todo) y seller (+ planes).
+   Sincroniza al arrancar (`onModuleInit`) y al alta/baja de seller (`syncUser`).
+   `MessagingPort.setMyCommands` (Telegram; Kapso lo omite). 4 tests.
 9. ⏳ **Confirmación inline** en destructivos (`/quitarvendedor` `/panico` `/suspender`).
 
 > El **motor de alertas** (HitDetection + dispatch + subscribe.flow) se apoya en las

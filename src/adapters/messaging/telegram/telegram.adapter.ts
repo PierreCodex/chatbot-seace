@@ -2,7 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InputFile } from 'grammy';
 import type { InlineKeyboardButton, Update } from 'grammy/types';
 import type {
+  BotCommandSpec,
   ButtonOption,
+  CommandScope,
   InboundMessage,
   MessagingPort,
   OutboundMessage,
@@ -79,6 +81,15 @@ export class TelegramAdapter implements MessagingPort {
 
   async deleteMessage(to: string, messageId: string): Promise<void> {
     await this.client.api.deleteMessage(Number(to), Number(messageId));
+  }
+
+  // Menú nativo de comandos por scope (BotCommandScopeDefault / BotCommandScopeChat).
+  async setMyCommands(commands: BotCommandSpec[], scope: CommandScope): Promise<void> {
+    const apiScope =
+      scope.type === 'chat'
+        ? ({ type: 'chat', chat_id: Number(scope.chatId) } as const)
+        : ({ type: 'default' } as const);
+    await this.client.api.setMyCommands(commands, { scope: apiScope });
   }
 
   // Telegram webhook = un objeto `Update`. Nos interesan dos formas:

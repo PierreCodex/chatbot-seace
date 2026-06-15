@@ -25,9 +25,17 @@ const repo = {
 const cache = { get: vi.fn(), set: vi.fn(), del: vi.fn(), ping: vi.fn() };
 const config = { get: () => ['1'] }; // OWNER_IDS = ['1']
 
+const botCommands = { syncUser: vi.fn().mockResolvedValue(undefined) };
+
 function make(): AdminCommandsService {
   const roles = new RolesService(repo as never, config as never);
-  return new AdminCommandsService(roles, new PlanService(), repo as never, cache as never);
+  return new AdminCommandsService(
+    roles,
+    new PlanService(),
+    botCommands as never,
+    repo as never,
+    cache as never,
+  );
 }
 
 function freeUser(id: string) {

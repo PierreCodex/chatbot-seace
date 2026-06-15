@@ -4,6 +4,7 @@ import { tgEmoji } from '../../common/telegram-emoji';
 import { CACHE_PORT, type CachePort } from '../../ports/cache.port';
 import { ADMIN_REPO, type AdminRepoPort } from '../../ports/persistence/admin.repo.port';
 import type { ButtonOption, OutboundMessage } from '../../ports/messaging.port';
+import { BotCommandsService } from './bot-commands.service';
 import { PlanService } from './plan.service';
 import { RolesService, type AdminRole } from './roles.service';
 
@@ -73,6 +74,7 @@ export class AdminCommandsService {
   constructor(
     private readonly roles: RolesService,
     private readonly plan: PlanService,
+    private readonly botCommands: BotCommandsService,
     @Inject(ADMIN_REPO) private readonly repo: AdminRepoPort,
     @Inject(CACHE_PORT) private readonly cache: CachePort,
   ) {}
@@ -486,6 +488,7 @@ export class AdminCommandsService {
       ownerId: ctx.senderId,
       note: joinNote(args.slice(1)),
     });
+    void this.botCommands.syncUser(id); // refresca su menú nativo (ahora ve los de planes)
     return [
       this.text(ctx, `✅ <code>${id}</code> ahora es <b>seller</b>.`),
       this.textTo(
@@ -501,6 +504,7 @@ export class AdminCommandsService {
     if (!id) return [this.text(ctx, 'Uso: <code>/quitarvendedor &lt;id&gt;</code>')];
     const seller = await this.repo.revokeSeller({ telegramId: id, byId: ctx.senderId });
     if (!seller) return [this.text(ctx, `<code>${id}</code> no es seller.`)];
+    void this.botCommands.syncUser(id); // su menú vuelve al público
     return [
       this.text(ctx, `✅ <code>${id}</code> ya no es seller.`),
       this.textTo(ctx, id, 'ℹ️ Se te quitaron los permisos de seller.'),
@@ -560,6 +564,7 @@ export class AdminCommandsService {
       emergency: true,
     });
     if (!seller) return [this.text(ctx, `<code>${id}</code> no es seller.`)];
+    void this.botCommands.syncUser(id); // su menú vuelve al público
     const recent = await this.repo.listAuditByActor(id, 10);
     const head = `🚨 <b>Emergencia:</b> seller <code>${id}</code> revocado.`;
     const body =
