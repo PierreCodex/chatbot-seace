@@ -14,6 +14,8 @@ import type { Flow, FlowContext, FlowResult } from '../types';
 
 const FLOW_ID = 'search-anuncios';
 const MAX_ENTITY_CHOICES = 10;
+// Cuántos anuncios se muestran paginados (el PDF "con todos" cubre el resto).
+const ACF_PAGE_COUNT = 5;
 
 type Step = 'awaiting-objeto' | 'menu' | 'awaiting-entity' | 'entity-disambiguation';
 
@@ -323,9 +325,10 @@ export class SearchAnunciosFlow implements Flow {
           : undefined;
 
       // Telegram: lista paginada (un anuncio por página, navegable in-place). Se
-      // guardan los ids del resultado en el estado para que `acfpage:N` los recorra.
+      // paginan solo los 5 más recientes (el PDF tiene todos); guardamos sus ids
+      // en el estado para que `acfpage:N` los recorra.
       if (this.isTelegram) {
-        const ids = outcome.processes.map((p) => p.id);
+        const ids = outcome.processes.slice(0, ACF_PAGE_COUNT).map((p) => p.id);
         const page0 = this.resultsPresenter.pageMessage({
           to: ctx.phoneNumber,
           phoneNumberId: ctx.phoneNumberId,
