@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TG_EFFECT, TG_EMOJI, tgAnuncios, tgEmoji } from '../../../common/telegram-emoji';
 import type { Env } from '../../../config/env.schema';
-import type { OutboundMessage } from '../../../ports/messaging.port';
+import type { ButtonOption, OutboundMessage } from '../../../ports/messaging.port';
 import type { StoredProcess } from '../../../ports/persistence/processes.repo.port';
 
 const MAX_CARDS = 5;
@@ -110,6 +110,52 @@ export class AcfResultsPresenter {
       : [];
 
     return [header, ...cards, ...pdf, this.footer(ctx)];
+  }
+
+  /**
+   * Una página de resultados (Telegram): un anuncio + navegación ◀/▶ + acciones.
+   * In-place (el handler reescribe el mismo mensaje). `total` = total de anuncios
+   * encontrados; `pages` = cuántos navegables hay (los que tenemos en mano).
+   */
+  pageMessage(args: {
+    to: string;
+    phoneNumberId: string;
+    process: StoredProcess;
+    index: number;
+    pages: number;
+    total: number;
+    pdfUrl?: string;
+  }): OutboundMessage {
+    const { to, phoneNumberId, process, index, pages, total, pdfUrl } = args;
+    const header = `${tgEmoji('anunciosHdr')}  <b>${total}</b>  ${tgAnuncios()}   ·   <code>${index + 1}/${pages}</code>`;
+    const body = `${DASH}\n${header}\n${cardTelegram(process)}`;
+
+    const nav: ButtonOption[] = [];
+    if (index > 0) nav.push({ id: `acfpage:${index - 1}`, title: '◀ Anterior', style: 'primary' });
+    if (index < pages - 1) {
+      nav.push({ id: `acfpage:${index + 1}`, title: 'Siguiente ▶', style: 'primary' });
+    }
+    const actions: ButtonOption[] = [
+      { id: 'acf:subscribe', title: '🔔 Avísame', style: 'success' },
+    ];
+    if (pdfUrl) actions.push({ id: 'acf:pdf', title: '📄 PDF con todos', url: pdfUrl });
+
+    const buttons: ButtonOption[] = [
+      ...nav,
+      ...actions,
+      { id: 'menu:main', title: 'Menú', style: 'success', iconCustomEmojiId: TG_EMOJI.back.id },
+    ];
+    const layout = [...(nav.length ? [nav.length] : []), actions.length, 1];
+    return {
+      kind: 'buttons',
+      to,
+      phoneNumberId,
+      html: true,
+      ...(index === 0 ? { effectId: TG_EFFECT.celebrate } : {}),
+      body,
+      buttons,
+      buttonLayout: layout,
+    };
   }
 
   // ── WhatsApp ──

@@ -1,11 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { OutboundMessage } from '../../../ports/messaging.port';
+import {
+  PROCESSES_REPO,
+  type ProcessesRepoPort,
+} from '../../../ports/persistence/processes.repo.port';
+import { AcfResultsPresenter } from '../../search/presenters/acf-results.presenter';
 import { MenuPresenter } from '../presenters/menu.presenter';
 import type { Flow, FlowContext, FlowResult } from '../types';
 import { EntityResolverFlow } from './entity-resolver.flow';
 import { SearchAnunciosFlow } from './search-anuncios.flow';
 import { SearchProcesosFlow } from './search-procesos.flow';
 import { SubscribeFlow } from './subscribe.flow';
+
+/** Estado de la lista paginada de resultados ACF (guardado tras una búsqueda). */
+interface AcfResultsState {
+  ids: string[];
+  total: number;
+  pdfUrl?: string | null;
+}
 
 @Injectable()
 export class MainMenuFlow implements Flow {
@@ -17,10 +29,15 @@ export class MainMenuFlow implements Flow {
     private readonly entityFlow: EntityResolverFlow,
     private readonly searchFlow: SearchProcesosFlow,
     private readonly subscribeFlow: SubscribeFlow,
+    private readonly acfPresenter: AcfResultsPresenter,
+    @Inject(PROCESSES_REPO) private readonly processes: ProcessesRepoPort,
   ) {}
 
   async handle(ctx: FlowContext): Promise<FlowResult> {
     const input = ctx.input.trim();
+
+    // Navegación de la lista paginada de resultados ACF (◀/▶).
+    if (input.startsWith('acfpage:')) return this.onAcfPage(ctx, input);
 
     // El usuario eligió una opción del menú o un botón de resultados.
     switch (input) {
@@ -91,6 +108,39 @@ export class MainMenuFlow implements Flow {
         };
       }
     }
+  }
+
+  /** Renderiza la página N de los resultados ACF (in-place). */
+  private async onAcfPage(ctx: FlowContext, input: string): Promise<FlowResult> {
+    const res = ctx.state.data?.acfResults as AcfResultsState | undefined;
+    if (!res?.ids?.length) {
+      // Sin estado (sesión vieja): no rompemos, mostramos el menú.
+      return { messages: [this.presenter.build(ctx.phoneNumberId, ctx.phoneNumber)] };
+    }
+    const idx = Math.max(
+      0,
+      Math.min(Number(input.slice('acfpage:'.length)) || 0, res.ids.length - 1),
+    );
+    const process = await this.processes.findById(res.ids[idx]);
+    if (!process) {
+      return { messages: [this.presenter.build(ctx.phoneNumberId, ctx.phoneNumber)] };
+    }
+    return {
+      messages: [
+        this.acfPresenter.pageMessage({
+          to: ctx.phoneNumber,
+          phoneNumberId: ctx.phoneNumberId,
+          process,
+          index: idx,
+          pages: res.ids.length,
+          total: res.total,
+          pdfUrl: res.pdfUrl ?? undefined,
+        }),
+      ],
+      navigation: 'edit',
+      nextFlowId: 'main-menu',
+      nextStep: 'awaiting-selection',
+    };
   }
 
   private replyAndShowMenu(ctx: FlowContext, text: string): FlowResult {

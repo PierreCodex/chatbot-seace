@@ -30,6 +30,8 @@ const subscribe = {
   startCreate: vi.fn().mockResolvedValue({ messages: ['SUBC'] }),
   startManage: vi.fn().mockResolvedValue({ messages: ['SUBM'] }),
 };
+const acfPresenter = { pageMessage: vi.fn().mockReturnValue({ kind: 'buttons' }) };
+const processes = { findById: vi.fn() };
 
 describe('MainMenuFlow', () => {
   const flow = new MainMenuFlow(
@@ -38,6 +40,8 @@ describe('MainMenuFlow', () => {
     entity as never,
     procesos as never,
     subscribe as never,
+    acfPresenter as never,
+    processes as never,
   );
   beforeEach(() => vi.clearAllMocks());
 
@@ -80,5 +84,21 @@ describe('MainMenuFlow', () => {
     const r = await flow.handle(makeCtx('subscriptions'));
     expect(subscribe.startManage).toHaveBeenCalledTimes(1);
     expect(r.messages).toEqual(['SUBM']);
+  });
+
+  it('"acfpage:N" renderiza esa página del resultado (edit)', async () => {
+    processes.findById.mockResolvedValue({ id: 'p2', tab: 'anuncios_futuros' });
+    const ctx = makeCtx('acfpage:1');
+    ctx.state.data = { acfResults: { ids: ['p1', 'p2', 'p3'], total: 3, pdfUrl: null } };
+    const r = await flow.handle(ctx);
+    expect(processes.findById).toHaveBeenCalledWith('p2');
+    expect(acfPresenter.pageMessage).toHaveBeenCalledTimes(1);
+    expect(r.navigation).toBe('edit');
+  });
+
+  it('"acfpage" sin estado no rompe (muestra menú)', async () => {
+    await flow.handle(makeCtx('acfpage:2'));
+    expect(processes.findById).not.toHaveBeenCalled();
+    expect(presenter.build).toHaveBeenCalled();
   });
 });

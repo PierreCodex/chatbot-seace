@@ -11,6 +11,8 @@ export interface ButtonOption {
   style?: 'primary' | 'success' | 'danger';
   // Custom emoji animado como ícono del botón (Telegram 9.4). WhatsApp lo ignora.
   iconCustomEmojiId?: string;
+  // Botón de enlace (abre la URL). Si está, prevalece sobre el callback `id`.
+  url?: string;
 }
 
 export interface InboundMessage {

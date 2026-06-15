@@ -321,6 +321,32 @@ export class SearchAnunciosFlow implements Flow {
         outcome.totalFound > 5
           ? ((await this.files.hostAcfPdf(outcome.processes)) ?? undefined)
           : undefined;
+
+      // Telegram: lista paginada (un anuncio por página, navegable in-place). Se
+      // guardan los ids del resultado en el estado para que `acfpage:N` los recorra.
+      if (this.isTelegram) {
+        const ids = outcome.processes.map((p) => p.id);
+        const page0 = this.resultsPresenter.pageMessage({
+          to: ctx.phoneNumber,
+          phoneNumberId: ctx.phoneNumberId,
+          process: outcome.processes[0],
+          index: 0,
+          pages: ids.length,
+          total: outcome.totalFound,
+          pdfUrl,
+        });
+        return {
+          messages: [page0],
+          navigation: 'replace',
+          nextFlowId: 'main-menu',
+          nextStep: 'awaiting-selection',
+          dataPatch: {
+            ...reset,
+            acfResults: { ids, total: outcome.totalFound, pdfUrl: pdfUrl ?? null },
+          },
+        };
+      }
+
       const messages = this.resultsPresenter.build({
         phoneNumber: ctx.phoneNumber,
         phoneNumberId: ctx.phoneNumberId,

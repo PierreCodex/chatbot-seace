@@ -178,12 +178,15 @@ function render(message: Exclude<OutboundMessage, { kind: 'document' }>): {
 // Agrupa botones en filas según `layout` (ej. [1,2,1]); sin layout → 1 por fila.
 // Los botones que sobren del layout caen a una fila individual cada uno.
 function chunkButtons(buttons: ButtonOption[], layout?: number[]): InlineKeyboardButton[][] {
-  const toBtn = (b: ButtonOption): InlineKeyboardButton => ({
-    text: b.title,
-    callback_data: b.id,
-    ...(b.style ? { style: b.style } : {}),
-    ...(b.iconCustomEmojiId ? { icon_custom_emoji_id: b.iconCustomEmojiId } : {}),
-  });
+  const toBtn = (b: ButtonOption): InlineKeyboardButton =>
+    b.url
+      ? { text: b.title, url: b.url, ...(b.style ? { style: b.style } : {}) }
+      : {
+          text: b.title,
+          callback_data: b.id,
+          ...(b.style ? { style: b.style } : {}),
+          ...(b.iconCustomEmojiId ? { icon_custom_emoji_id: b.iconCustomEmojiId } : {}),
+        };
   if (!layout || layout.length === 0) {
     return buttons.map((b) => [toBtn(b)]);
   }
