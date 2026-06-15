@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Chatbot WhatsApp para consultar SEACE 3.0",
+  "packageManager": "pnpm@9.15.4",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
