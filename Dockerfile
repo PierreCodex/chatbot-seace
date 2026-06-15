@@ -7,8 +7,8 @@ WORKDIR /app
 RUN corepack enable
 
 # 1) Dependencias (con devDeps: se necesitan para `nest build` y `prisma generate`).
-#    pnpm-workspace.yaml trae `onlyBuiltDependencies` (postinstall de Prisma, etc.).
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+#    pnpm 9 (packageManager pin) corre los postinstall sin gate.
+COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # 2) Chromium + libs del SO para Playwright (lo usa el worker).

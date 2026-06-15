@@ -7,7 +7,7 @@ import type { OutboundMessage } from '../../../ports/messaging.port';
 /** Banner de bienvenida (Telegram lo envía como foto; Kapso lo ignora). */
 const WELCOME_BANNER = 'assets/banner.png';
 /** Separador de la bienvenida (estilo "====" del diseño propuesto). */
-const WELCOME_SEP = '═══════════════';
+const WELCOME_SEP = '====================';
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -58,16 +58,16 @@ export class MenuPresenter {
       html: true,
       imagePath: WELCOME_BANNER,
       body:
-        `${hola}, bienvenido a tu bot favorito 🤖\n` +
-        `${WELCOME_SEP}\n` +
+        `${hola}, bienvenido a tu bot favorito 🤖\n\n` +
+        `${WELCOME_SEP}\n\n` +
         `Somos <b>DataSeace</b> 🇵🇪\n` +
-        `<i>Monitoreo y alertas del SEACE, directo en Telegram</i> ${tgEmoji('tgLogo')}\n` +
-        `${WELCOME_SEP}\n` +
-        `⌨️ <b>COMANDOS BÁSICOS</b>\n\n` +
-        `🔰 Regístrate con /register <i>(3 alertas gratis)</i>\n` +
-        `⚒️ Menú de funciones /menu\n` +
-        `📋 Tu perfil /miplan\n` +
-        `${WELCOME_SEP}\n` +
+        `<i>Monitoreo y alertas del SEACE, directo en Telegram</i> ${tgEmoji('tgLogo')}\n\n` +
+        `${WELCOME_SEP}\n\n` +
+        `[⌨️]  <b>COMANDOS BÁSICOS</b>\n\n` +
+        `[🔰] Regístrate con /register <i>(3 alertas gratis)</i>\n` +
+        `[⚒️] Menú de funciones /menu\n` +
+        `[📋] Tu perfil /miplan\n\n` +
+        `${WELCOME_SEP}\n\n` +
         `${tgEmoji('ownerTag')} Owner: @pierrecodex ${tgEmoji('ownerBadge')}`,
     };
   }
