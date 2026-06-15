@@ -195,7 +195,10 @@ export class SubscribeFlow implements Flow {
     const lines = list.map((s, i) => {
       const alcance = s.entityNombre ? esc(s.entityNombre) : 'Todas las entidades';
       const objeto = s.objeto ? OBJETO_LABELS[s.objeto as ObjetoContratacion] : '—';
-      return `${i + 1}. <b>${esc(objeto)}</b> · ${alcance} · <i>${FREQ_LABEL[s.frequency]}</i>`;
+      return (
+        `${i + 1}. <b>${esc(objeto)}</b> · ${alcance}\n` +
+        `    <i>${FREQ_LABEL[s.frequency]}</i> · ⏳ ${vencimientoLabel(s.expiresAt)}`
+      );
     });
     const buttons: ButtonOption[] = list.map((s, i) => ({
       id: `subdel:${s.id}`,
@@ -356,6 +359,14 @@ export class SubscribeFlow implements Flow {
 
 function parseId(input: string, prefix: string): string | null {
   return input.startsWith(`${prefix}:`) ? input.slice(prefix.length + 1) : null;
+}
+
+/** Etiqueta de vigencia para "Mis alertas": días restantes o sin vencimiento. */
+function vencimientoLabel(expiresAt: Date | null): string {
+  if (!expiresAt) return 'Sin vencimiento';
+  const days = Math.ceil((expiresAt.getTime() - Date.now()) / MS_DAY);
+  if (days <= 0) return 'Vence hoy';
+  return `${days} día${days === 1 ? '' : 's'} restante${days === 1 ? '' : 's'}`;
 }
 
 function durationToDate(dur: DurKey): Date | null {

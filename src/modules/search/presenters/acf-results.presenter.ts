@@ -272,7 +272,8 @@ function cardTelegram(p: StoredProcess): string {
 
   const fields: string[] = [`🏛️ <b>ENTIDAD:</b> <code>${esc(p.entityNombre)}</code>`];
   if (p.descripcion) {
-    fields.push(`📋 <b>OBJETO:</b> <code>${esc(truncate(p.descripcion, 220))}</code>`);
+    // Una tarjeta por página → mostramos el objeto completo (cap alto por seguridad).
+    fields.push(`📋 <b>OBJETO:</b> <code>${esc(truncate(p.descripcion, 1000))}</code>`);
   }
   const cui = extractCui(acf?.alcance);
   if (cui) fields.push(`🔖 <b>CUI:</b> <code>${esc(cui)}</code>`);
