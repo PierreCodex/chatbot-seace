@@ -70,14 +70,19 @@ export class AcfResultsPresenter {
   private telegram(ctx: AcfPresentContext): OutboundMessage[] {
     const top = ctx.processes.slice(0, MAX_CARDS);
     const hasPdf = ctx.totalFound > MAX_CARDS && !!ctx.pdfUrl;
-    // Cabecera con la palabra ANUNCIOS en emojis-letra animados.
-    const countLine = `${tgEmoji('anunciosHdr')} <b>${ctx.totalFound}</b> ${tgAnuncios()} <b>futuros</b>`;
-    const headerBody =
+    // Cabecera con la palabra ANUNCIOS en emojis-letra animados (diseño en
+    // blockquote: separador · "🆘 N ANUNCIOS" · separador · descripción).
+    const div = tgDivider(10);
+    const title = `${tgEmoji('anunciosHdr')}  <b>${ctx.totalFound}</b>  ${tgAnuncios()}`;
+    const desc =
       ctx.totalFound <= MAX_CARDS
-        ? countLine
+        ? ''
         : hasPdf
-          ? `${countLine}\nTe muestro los ${top.length} más recientes y te adjunto el <b>PDF</b> con todos 👇`
-          : `${countLine}\nTe muestro los ${top.length} más recientes:`;
+          ? 'Te muestro los 5 más recientes y te adjunto el <b>PDF</b> con todos ⬇️'
+          : `Te muestro los ${top.length} más recientes:`;
+    const headerBody = desc
+      ? `<blockquote>${div}\n${title}\n${div}\n${desc}\n${div}</blockquote>`
+      : `<blockquote>${div}\n${title}\n${div}</blockquote>`;
 
     const header: OutboundMessage = {
       kind: 'text',
