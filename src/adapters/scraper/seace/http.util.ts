@@ -3,11 +3,19 @@
  * petición se cuelgue para siempre**: si SEACE no responde, abortamos por timeout
  * y lanzamos un error TIPADO para que las capas de arriba (bot/listener) den un
  * mensaje humano en vez de dejar al usuario en silencio.
+ *
+ * Proxy: si `PROXY_URL` está seteado (ej. proxy residencial de Perú), todas las
+ * peticiones a SEACE salen por ese proxy. Necesario en hosting cuyo IP de
+ * datacenter SEACE bloquea (p.ej. Railway). Ver docs/19-deploy-railway.md.
  */
+import { ProxyAgent } from 'undici';
 
 const DEFAULT_TIMEOUT_MS = 12_000; // SEACE suele responder en 1-2s; 12s es holgado
 const DEFAULT_RETRIES = 1; // 1 reintento ante timeout/red (cubre el bache puntual)
 const RETRY_DELAY_MS = 400;
+
+// ProxyAgent (undici) creado una vez si hay PROXY_URL. `http://user:pass@host:port`.
+const PROXY_DISPATCHER = process.env.PROXY_URL ? new ProxyAgent(process.env.PROXY_URL) : undefined;
 
 /** SEACE no respondió dentro del timeout (la petición se abortó). */
 export class SeaceTimeoutError extends Error {
@@ -44,7 +52,12 @@ export async function seaceFetch(
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+      return await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(timeoutMs),
+        // `dispatcher` es opción de undici (no está en el tipo RequestInit estándar).
+        ...(PROXY_DISPATCHER ? { dispatcher: PROXY_DISPATCHER } : {}),
+      } as RequestInit & { dispatcher?: unknown });
     } catch (err) {
       lastErr = err;
       if (attempt < retries) await sleep(RETRY_DELAY_MS);

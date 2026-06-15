@@ -44,6 +44,11 @@ export const envSchema = z.object({
   // Si falta, el bot omite el PDF y muestra solo las 5 tarjetas.
   PUBLIC_BASE_URL: z.string().url().optional(),
 
+  // Proxy (opcional) para los fetch a SEACE. Necesario si el IP del host está
+  // bloqueado por SEACE (ej. datacenter de Railway) → usar un proxy residencial
+  // de Perú. Formato: http://usuario:password@host:puerto. Ver docs/19.
+  PROXY_URL: z.string().url().optional(),
+
   // Motor de alertas F5 — crawler ACF agendado (corre en el worker). Apagado por
   // defecto para que dev/test/CI no scrapeen SEACE en cada arranque. En prod del
   // worker: CRAWLER_ENABLED=true.

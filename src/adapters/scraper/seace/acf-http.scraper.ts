@@ -242,7 +242,10 @@ export class AcfHttpScraper {
     const html = await g.text();
     const viewState = html.match(/name="javax\.faces\.ViewState"[^>]*value="([^"]*)"/)?.[1] ?? null;
     if (!cookieHeader || !viewState) {
-      throw new Error(`openSession ACF incompleta (cookie=${!!cookieHeader} vs=${!!viewState})`);
+      // status ayuda a distinguir bloqueo/geo (403/redirect) de la página normal.
+      throw new Error(
+        `openSession ACF incompleta (status=${g.status} cookie=${!!cookieHeader} vs=${!!viewState})`,
+      );
     }
     return { cookieHeader, viewState, valueByObjeto: this.readObjetoValues(html) };
   }
