@@ -146,19 +146,38 @@ export class AcfResultsPresenter {
     const body = `${found}   ·   <code>${index + 1}/${pages}</code>\n${cardTelegram(process)}`;
 
     const nav: ButtonOption[] = [];
-    if (index > 0) nav.push({ id: `acfpage:${index - 1}`, title: '◀ Anterior', style: 'primary' });
+    if (index > 0) {
+      nav.push({
+        id: `acfpage:${index - 1}`,
+        title: 'Anterior',
+        style: 'primary',
+        iconCustomEmojiId: TG_EMOJI.back.id,
+      });
+    }
     if (index < pages - 1) {
-      nav.push({ id: `acfpage:${index + 1}`, title: 'Siguiente ▶', style: 'primary' });
+      nav.push({
+        id: `acfpage:${index + 1}`,
+        title: 'Siguiente',
+        style: 'primary',
+        iconCustomEmojiId: TG_EMOJI.navNext.id,
+      });
     }
     const actions: ButtonOption[] = [
       {
         id: 'acf:subscribe',
         title: 'Avísame',
         style: 'success',
-        iconCustomEmojiId: TG_EMOJI.alert.id,
+        iconCustomEmojiId: TG_EMOJI.avisameBtn.id,
       },
     ];
-    if (pdfUrl) actions.push({ id: 'acf:pdf', title: '📄 PDF con todos', url: pdfUrl });
+    if (pdfUrl) {
+      actions.push({
+        id: 'acf:pdf',
+        title: 'PDF con todos',
+        url: pdfUrl,
+        iconCustomEmojiId: TG_EMOJI.pdfBtn.id,
+      });
+    }
 
     const buttons: ButtonOption[] = [
       ...nav,

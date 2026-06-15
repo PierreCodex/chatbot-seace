@@ -182,7 +182,12 @@ function render(message: Exclude<OutboundMessage, { kind: 'document' }>): {
 function chunkButtons(buttons: ButtonOption[], layout?: number[]): InlineKeyboardButton[][] {
   const toBtn = (b: ButtonOption): InlineKeyboardButton =>
     b.url
-      ? { text: b.title, url: b.url, ...(b.style ? { style: b.style } : {}) }
+      ? {
+          text: b.title,
+          url: b.url,
+          ...(b.style ? { style: b.style } : {}),
+          ...(b.iconCustomEmojiId ? { icon_custom_emoji_id: b.iconCustomEmojiId } : {}),
+        }
       : {
           text: b.title,
           callback_data: b.id,
