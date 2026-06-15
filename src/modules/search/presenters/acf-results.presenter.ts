@@ -112,11 +112,6 @@ export class AcfResultsPresenter {
     return [header, ...cards, ...pdf, this.footer(ctx)];
   }
 
-  /**
-   * Una página de resultados (Telegram): un anuncio + navegación ◀/▶ + acciones.
-   * In-place (el handler reescribe el mismo mensaje). `total` = total de anuncios
-   * encontrados; `pages` = cuántos navegables hay (los que tenemos en mano).
-   */
   /** Mensaje decorativo (se envía una vez, arriba de la lista): 🆘 ANUNCIOS. */
   resultsHeader(args: { to: string; phoneNumberId: string }): OutboundMessage {
     return {
@@ -129,6 +124,11 @@ export class AcfResultsPresenter {
     };
   }
 
+  /**
+   * Una página de resultados (Telegram): un anuncio + navegación ◀/▶ + acciones.
+   * In-place (el handler reescribe el mismo mensaje). `total` = total de anuncios
+   * encontrados; `pages` = cuántos navegables hay.
+   */
   pageMessage(args: {
     to: string;
     phoneNumberId: string;
@@ -151,7 +151,12 @@ export class AcfResultsPresenter {
       nav.push({ id: `acfpage:${index + 1}`, title: 'Siguiente ▶', style: 'primary' });
     }
     const actions: ButtonOption[] = [
-      { id: 'acf:subscribe', title: '🔔 Avísame', style: 'success' },
+      {
+        id: 'acf:subscribe',
+        title: 'Avísame',
+        style: 'success',
+        iconCustomEmojiId: TG_EMOJI.alert.id,
+      },
     ];
     if (pdfUrl) actions.push({ id: 'acf:pdf', title: '📄 PDF con todos', url: pdfUrl });
 
@@ -261,7 +266,9 @@ function cardTelegram(p: StoredProcess): string {
     fields.push(`🔢 <b>CANTIDAD:</b> <code>${esc(String(acf.cantidad))}</code>`);
   }
 
-  return `${DASH}\n${head.join(' · ')}\n${fields.join('\n')}`;
+  // Bullet animado antes de cada campo + interlineado (línea en blanco entre campos).
+  const bulleted = fields.map((f) => `${tgEmoji('dot')} ${f}`);
+  return `${DASH}\n${head.join(' · ')}\n\n${bulleted.join('\n\n')}`;
 }
 
 function formatAcfCard(p: StoredProcess): string {
