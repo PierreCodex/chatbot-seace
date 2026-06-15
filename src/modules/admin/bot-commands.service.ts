@@ -15,6 +15,7 @@ const PUBLIC: BotCommandSpec[] = [
   { command: 'register', description: 'Registrarte y ver tu plan' },
   { command: 'menu', description: 'Menú de funciones' },
   { command: 'miplan', description: 'Ver tu plan y tus alertas' },
+  { command: 'misalertas', description: 'Gestionar tus alertas' },
   { command: 'ayuda', description: '¿Qué puede hacer el bot?' },
   { command: 'ent', description: 'Consultar una entidad' },
 ];

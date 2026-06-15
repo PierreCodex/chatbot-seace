@@ -15,6 +15,8 @@ import type { Flow, FlowContext, FlowResult } from '../types';
 
 const FLOW_ID = 'subscribe';
 const MS_DAY = 24 * 60 * 60 * 1000;
+// Contacto para "Ver planes Premium" (cobro manual). Cambiar si cambia el handle.
+const PREMIUM_CONTACT_URL = 'https://t.me/pierrecodex';
 
 type Step = 'awaiting-frequency' | 'awaiting-duration' | 'manage';
 
@@ -109,14 +111,7 @@ export class SubscribeFlow implements Flow {
     const eff = await this.effectivePlan(ctx.phoneNumber);
     const active = await this.subs.countActive(ctx.userId);
     const max = this.plan.maxAlertas(eff);
-    if (active >= max) {
-      return this.toMenu(
-        ctx,
-        this.isTelegram
-          ? `🔔 Llegaste al límite de <b>${max}</b> alertas de tu plan.\n\nBorrá una en <b>Mis alertas</b>${eff === 'premium' ? '' : ' o pasá a Premium para tener hasta 10'}.`
-          : `Llegaste al límite de ${max} alertas. Borrá una en Mis alertas.`,
-      );
-    }
+    if (active >= max) return this.quotaMessage(ctx, eff, max);
     const draft: SubDraft = {
       objeto: last.objeto,
       entityRuc: last.entityRuc ?? null,
@@ -129,6 +124,42 @@ export class SubscribeFlow implements Flow {
       nextFlowId: FLOW_ID,
       nextStep: 'awaiting-frequency',
       dataPatch: { subDraft: draft },
+    };
+  }
+
+  /** Cuota llena: aviso + botón a Premium (Free) o solo aviso (Premium). */
+  private quotaMessage(ctx: FlowContext, eff: EffectivePlan, max: number): FlowResult {
+    const body =
+      eff === 'premium'
+        ? `🔔 Llegaste al límite de tu plan <b>Premium</b> (${max} alertas).\n\nBorrá una en /misalertas.`
+        : `🔔 Llegaste al límite de tu plan <b>Free</b> (${max} alertas).\n\nBorrá una en /misalertas o actualizá a Premium para tener 10.`;
+    const buttons: ButtonOption[] =
+      eff === 'premium'
+        ? [{ id: 'menu:main', title: 'Menú', style: 'success' }]
+        : [
+            {
+              id: 'premium:info',
+              title: 'Ver planes Premium',
+              url: PREMIUM_CONTACT_URL,
+              style: 'primary',
+            },
+            { id: 'menu:main', title: 'Menú', style: 'success' },
+          ];
+    return {
+      messages: [
+        {
+          kind: 'buttons',
+          to: ctx.phoneNumber,
+          phoneNumberId: ctx.phoneNumberId,
+          html: this.isTelegram,
+          body,
+          buttons,
+          buttonLayout: [1, 1],
+        },
+      ],
+      nextFlowId: 'main-menu',
+      nextStep: 'awaiting-selection',
+      dataPatch: { subDraft: undefined },
     };
   }
 

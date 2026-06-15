@@ -172,13 +172,15 @@ export class SearchAnunciosFlow implements Flow {
         messages: [textMsg(ctx, 'Necesito al menos 2 letras. Escribe el nombre, sigla o RUC.')],
       };
     }
-    await ctx.notify(this.consultandoMsg(ctx));
+    // "⏳ Consultando…" intermedio; se borra al entregar el resultado (deleteMessageIds).
+    const status = await ctx.notify(this.consultandoMsg(ctx));
+    const del = [status.messageId];
     let matches;
     try {
       matches = await this.entitySearch.search(q);
     } catch (err) {
       this.logger.warn(`búsqueda de entidad falló: ${(err as Error).message}`);
-      return { messages: [textMsg(ctx, friendlyError(err))] };
+      return { messages: [textMsg(ctx, friendlyError(err))], deleteMessageIds: del };
     }
     if (matches.length === 0) {
       return {
@@ -196,6 +198,7 @@ export class SearchAnunciosFlow implements Flow {
                 'No encontré entidades con eso. Prueba con otras palabras (ciudad, región) o pega el RUC.',
               ),
         ],
+        deleteMessageIds: del,
       };
     }
     if (matches.length === 1) {
@@ -206,6 +209,7 @@ export class SearchAnunciosFlow implements Flow {
         ],
         nextStep: 'menu',
         dataPatch: { entity: { ruc: only.ruc, nombre: only.nombre }, entityCandidates: [] },
+        deleteMessageIds: del,
       };
     }
     // >10 coincidencias: no caben en la lista nativa → PDF con todas + pedir
@@ -222,6 +226,7 @@ export class SearchAnunciosFlow implements Flow {
           ),
           nextStep: 'awaiting-entity',
           dataPatch: { entityCandidates: [] },
+          deleteMessageIds: del,
         };
       }
       const top = matches.slice(0, MAX_ENTITY_CHOICES);
@@ -235,6 +240,7 @@ export class SearchAnunciosFlow implements Flow {
         ],
         nextStep: 'entity-disambiguation',
         dataPatch: { entityCandidates: top },
+        deleteMessageIds: del,
       };
     }
 
@@ -243,6 +249,7 @@ export class SearchAnunciosFlow implements Flow {
       messages: [this.entityListMessage(ctx, matches.length, top)],
       nextStep: 'entity-disambiguation',
       dataPatch: { entityCandidates: top },
+      deleteMessageIds: del,
     };
   }
 

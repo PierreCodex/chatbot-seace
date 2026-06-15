@@ -12,6 +12,7 @@ import { WaUsersService } from './wa-users.service';
 
 const DEFAULT_FLOW = 'main-menu';
 const ENTITY_FLOW = 'entity-resolver';
+const SUBSCRIBE_FLOW = 'subscribe';
 
 @Injectable()
 export class ConversationService {
@@ -94,6 +95,11 @@ export class ConversationService {
         data: {},
       };
       input = entArg;
+    }
+
+    // Comando GLOBAL `/misalertas` (o `/alertas`): abre "Mis alertas" (gestión).
+    if (/^\/(misalertas|alertas)(@\w+)?$/i.test(input.trim())) {
+      state = { ...state, flowId: SUBSCRIBE_FLOW, step: 'manage' };
     }
 
     // Find current flow
