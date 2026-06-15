@@ -43,7 +43,7 @@ export const TG_EMOJI = {
   anunciosHdr: { id: '5213285132709929474', fallback: '🗓️' },
   // Bienvenida /start
   tgLogo: { id: '5244763347454300958', fallback: '✨' },
-  ownerTag: { id: '5316784240996654202', fallback: '👨‍💻' },
+  ownerTag: { id: '5215720576735255650', fallback: '👨‍💻' },
   ownerBadge: { id: '5370941588165893740', fallback: '👑' },
 } satisfies Record<string, CustomEmoji>;
 

@@ -38,13 +38,11 @@ export class MenuPresenter {
       : this.whatsapp(phoneNumberId, to);
   }
 
-  /** Bienvenida (primer contacto): Telegram → [banner, menú]; WhatsApp → [list]. */
+  /** Bienvenida (/start): Telegram → SOLO el banner (el menú se abre con /menu);
+   * WhatsApp → [list] (la lista ya es el menú). */
   welcome(phoneNumberId: string, to: string, displayName?: string | null): OutboundMessage[] {
     if (!this.isTelegram) return [this.whatsapp(phoneNumberId, to)];
-    return [
-      this.telegramBanner(phoneNumberId, to, displayName),
-      this.telegramMain(phoneNumberId, to),
-    ];
+    return [this.telegramBanner(phoneNumberId, to, displayName)];
   }
 
   private telegramBanner(
@@ -70,7 +68,7 @@ export class MenuPresenter {
         `⚒️ Menú de funciones /menu\n` +
         `📋 Tu perfil /miplan\n` +
         `${WELCOME_SEP}\n` +
-        `${tgEmoji('ownerTag')} ➡️ Owner: @pierrecodex ${tgEmoji('ownerBadge')}`,
+        `${tgEmoji('ownerTag')} Owner: @pierrecodex ${tgEmoji('ownerBadge')}`,
     };
   }
 

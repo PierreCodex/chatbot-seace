@@ -31,13 +31,12 @@ describe('MenuPresenter', () => {
     expect(msg.buttons.find((b) => b.id === 'acf:module')?.style).toBe('primary');
   });
 
-  it('Telegram: welcome = [banner foto, menú]', () => {
+  it('Telegram: welcome = [solo banner] (el menú se abre con /menu)', () => {
     const msgs = presenterFor('telegram').welcome('pn1', '+51999');
-    expect(msgs).toHaveLength(2);
+    expect(msgs).toHaveLength(1);
     expect(msgs[0].kind).toBe('text');
     expect(msgs[0].imagePath).toBe('assets/banner.png');
     expect(msgs[0].body).toContain('<b>DataSeace</b>');
-    expect(msgs[1].kind).toBe('buttons');
   });
 
   it('WhatsApp: welcome = [list]', () => {
