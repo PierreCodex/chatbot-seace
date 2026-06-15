@@ -68,6 +68,15 @@ export class MainMenuFlow implements Flow {
         // "🔔 Avísame": crea una alerta heredando los filtros de la última búsqueda.
         return this.subscribeFlow.startCreate(ctx);
 
+      // "Menú" desde la tarjeta de resultados: muestra el menú en un mensaje NUEVO
+      // (no borra la tarjeta, a diferencia de `menu:main` que hace replace).
+      case 'menu:show':
+        return {
+          messages: [this.presenter.build(ctx.phoneNumberId, ctx.phoneNumber)],
+          nextFlowId: 'main-menu',
+          nextStep: 'awaiting-selection',
+        };
+
       // ── Mis alertas (gestión) ──
       case 'subscriptions':
         return this.subscribeFlow.startManage(ctx);

@@ -182,7 +182,9 @@ export class AcfResultsPresenter {
     const buttons: ButtonOption[] = [
       ...nav,
       ...actions,
-      { id: 'menu:main', title: 'Menú', style: 'success', iconCustomEmojiId: TG_EMOJI.back.id },
+      // `menu:show` (no `menu:main`): muestra el menú en un mensaje nuevo, sin borrar
+      // la tarjeta de resultados (queda en el historial).
+      { id: 'menu:show', title: 'Menú', style: 'success', iconCustomEmojiId: TG_EMOJI.back.id },
     ];
     const layout = [...(nav.length ? [nav.length] : []), actions.length, 1];
     return {

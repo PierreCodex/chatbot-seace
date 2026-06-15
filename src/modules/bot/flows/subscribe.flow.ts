@@ -122,9 +122,10 @@ export class SubscribeFlow implements Flow {
       entityRuc: last.entityRuc ?? null,
       entityNombre: last.entityNombre ?? null,
     };
+    // Mensaje NUEVO (sin edit) para no pisar la tarjeta de resultados: queda en
+    // el historial. A partir de acá el flujo edita sus propios mensajes.
     return {
       messages: [this.frequencyMsg(ctx, draft, eff)],
-      navigation: 'edit',
       nextFlowId: FLOW_ID,
       nextStep: 'awaiting-frequency',
       dataPatch: { subDraft: draft },
