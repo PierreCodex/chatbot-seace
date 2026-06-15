@@ -92,11 +92,16 @@ export class MenuPresenter {
         '📂 <b>Módulos disponibles</b>\n' +
         `${tgEmoji('dot')} <b>Anuncio de Contratación Futura</b>  ${tgEmoji('ok')} <i>activo</i>\n` +
         `${tgEmoji('dot')} <b>Más módulos del SEACE</b>  🔒 <i>próximamente</i>\n\n` +
-        '👇 <i>Elige una opción</i>',
+        `${tgEmoji('elige')} <i>Elige una opción</i>`,
       buttons: [
-        { id: 'acf:module', title: '📅 Anuncio de Contratación Futura', style: 'primary' },
-        { id: 'soon', title: '🔒 Próximamente' },
-        { id: 'help', title: 'Ayuda', iconCustomEmojiId: TG_EMOJI.help.id },
+        {
+          id: 'acf:module',
+          title: 'Anuncio de Contratación Futura',
+          style: 'primary',
+          iconCustomEmojiId: TG_EMOJI.anunciosBtn.id,
+        },
+        { id: 'soon', title: 'Próximamente', iconCustomEmojiId: TG_EMOJI.soon.id },
+        { id: 'help', title: 'Ayuda', iconCustomEmojiId: TG_EMOJI.ayuda.id },
       ],
       // ACF ancho arriba; Próximamente + Ayuda en par.
       buttonLayout: [1, 2],

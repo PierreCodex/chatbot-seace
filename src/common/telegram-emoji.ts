@@ -29,6 +29,18 @@ export const TG_EMOJI = {
   search: { id: '5220108512893344933', fallback: '🔎' },
   ruc: { id: '5215480011322042129', fallback: '🔖' },
   write: { id: '5395444784611480792', fallback: '✍️' },
+  // /cmds (campos de las tarjetas + categoría Planes)
+  cmdComando: { id: '5197371802136892976', fallback: '🔧' },
+  cmdUso: { id: '5197269100878907942', fallback: '✍️' },
+  planes: { id: '5445221832074483553', fallback: '💼' },
+  // Íconos de botones del menú (van como icon_custom_emoji_id, no en el título)
+  anunciosBtn: { id: '5274055917766202507', fallback: '🗓️' },
+  soon: { id: '5296369303661067030', fallback: '🔒' },
+  ayuda: { id: '5420323339723881652', fallback: '⚠️' },
+  // Acentos de mensajes
+  noEntidades: { id: '5202216593966244027', fallback: '🔍' },
+  elige: { id: '5406745015365943482', fallback: '👇' },
+  anunciosHdr: { id: '5213285132709929474', fallback: '🗓️' },
 } satisfies Record<string, CustomEmoji>;
 
 export type TgEmojiName = keyof typeof TG_EMOJI;
@@ -56,4 +68,21 @@ const DIVIDER_SEGMENT = '5467658560840149395';
 /** Línea divisoria animada (n segmentos). Solo en texto/caption con html:true. */
 export function tgDivider(segments = 10): string {
   return `<tg-emoji emoji-id="${DIVIDER_SEGMENT}">➿</tg-emoji>`.repeat(segments);
+}
+
+// La palabra "ANUNCIOS" en emojis-letra animados (la N se repite en pos. 2 y 4).
+const ANUNCIOS_LETTERS: { id: string; ch: string }[] = [
+  { id: '5350358953832230891', ch: 'A' },
+  { id: '5350695030728173619', ch: 'N' },
+  { id: '5359351545903197932', ch: 'U' },
+  { id: '5350695030728173619', ch: 'N' },
+  { id: '5350493021236375754', ch: 'C' },
+  { id: '5350376442939059426', ch: 'I' },
+  { id: '5350832748854520730', ch: 'O' },
+  { id: '5350473255796879409', ch: 'S' },
+];
+
+/** "ANUNCIOS" en emojis-letra animados (texto/caption con html:true). */
+export function tgAnuncios(): string {
+  return ANUNCIOS_LETTERS.map((l) => `<tg-emoji emoji-id="${l.id}">${l.ch}</tg-emoji>`).join('');
 }

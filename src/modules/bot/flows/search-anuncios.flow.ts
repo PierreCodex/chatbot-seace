@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { tgDivider, tgEmoji, TG_EMOJI } from '../../../common/telegram-emoji';
+import { tgAnuncios, tgDivider, tgEmoji, TG_EMOJI } from '../../../common/telegram-emoji';
 import type { Env } from '../../../config/env.schema';
 import type { EntityLookupMatch } from '../../../ports/entity-lookup.port';
 import { FILES_PORT, type FilesPort } from '../../../ports/files.port';
@@ -181,10 +181,18 @@ export class SearchAnunciosFlow implements Flow {
     if (matches.length === 0) {
       return {
         messages: [
-          textMsg(
-            ctx,
-            'No encontré entidades con eso. Prueba con otras palabras (ciudad, región) o pega el RUC.',
-          ),
+          this.isTelegram
+            ? {
+                kind: 'text',
+                to: ctx.phoneNumber,
+                phoneNumberId: ctx.phoneNumberId,
+                html: true,
+                body: `${tgEmoji('noEntidades')} No encontré entidades con eso. Probá con otras palabras (ciudad, región) o pegá el RUC.`,
+              }
+            : textMsg(
+                ctx,
+                'No encontré entidades con eso. Prueba con otras palabras (ciudad, región) o pega el RUC.',
+              ),
         ],
       };
     }
@@ -385,7 +393,7 @@ export class SearchAnunciosFlow implements Flow {
         phoneNumberId: ctx.phoneNumberId,
         html: true,
         body:
-          '📅 <b>Ver anuncios futuros</b>\n' +
+          `${tgEmoji('anunciosHdr')} <b>Ver</b> ${tgAnuncios()} <b>futuros</b>\n` +
           tgDivider(8) +
           '\n¿Qué <b>tipo de contratación</b> te interesa?',
         buttons: [

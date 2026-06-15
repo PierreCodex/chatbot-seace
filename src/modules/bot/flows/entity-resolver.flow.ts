@@ -136,6 +136,23 @@ export class EntityResolverFlow implements Flow {
     );
   }
 
+  /** "No encontré entidades…" (channel-aware, con emoji animado en Telegram). */
+  private noEntidadesMsg(ctx: FlowContext): OutboundMessage {
+    if (this.isTelegram) {
+      return {
+        kind: 'text',
+        to: ctx.phoneNumber,
+        phoneNumberId: ctx.phoneNumberId,
+        html: true,
+        body: `${tgEmoji('noEntidades')} No encontré entidades con eso. Probá con otras palabras (ciudad, región) o pegá el RUC.`,
+      };
+    }
+    return textMsg(
+      ctx,
+      'No encontré entidades con eso. Prueba con otras palabras (ciudad, región) o pega el RUC.',
+    );
+  }
+
   private async onQuery(ctx: FlowContext): Promise<FlowResult> {
     const q = ctx.input.trim();
     // "🔎 Otra entidad" (desde los botones de cierre) → re-pedir el texto.
@@ -171,13 +188,7 @@ export class EntityResolverFlow implements Flow {
     }
     if (matches.length === 0) {
       return {
-        messages: [
-          textMsg(
-            ctx,
-            'No encontré entidades con eso. Prueba con otras palabras (ciudad, región) o pega el RUC.',
-          ),
-          this.followup(ctx),
-        ],
+        messages: [this.noEntidadesMsg(ctx), this.followup(ctx)],
         nextStep: 'awaiting-query',
         dataPatch: { entityCandidates: [], entity: undefined },
         deleteMessageIds: del,

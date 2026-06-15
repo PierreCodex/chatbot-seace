@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { AdminAuditLog } from '@prisma/client';
-import { tgEmoji } from '../../common/telegram-emoji';
+import { TG_EMOJI, tgEmoji } from '../../common/telegram-emoji';
 import { CACHE_PORT, type CachePort } from '../../ports/cache.port';
 import { ADMIN_REPO, type AdminRepoPort } from '../../ports/persistence/admin.repo.port';
 import type { ButtonOption, OutboundMessage } from '../../ports/messaging.port';
@@ -232,8 +232,9 @@ export class AdminCommandsService {
 
     const catBtns: ButtonOption[] = cats.map((c) => ({
       id: `cmds:c:${c.key}:0`,
-      title: `${c.icon} ${c.title}`,
+      title: c.iconId ? c.title : `${c.icon} ${c.title}`,
       style: 'primary',
+      ...(c.iconId ? { iconCustomEmojiId: c.iconId } : {}),
     }));
     const layout: number[] = [];
     for (let i = 0; i < catBtns.length; i += 2) layout.push(Math.min(2, catBtns.length - i));
@@ -264,14 +265,17 @@ export class AdminCommandsService {
     const cards = pages[idx]
       .map(
         (c) =>
-          `<blockquote>🔧 <b>Comando:</b> <code>${c.cmd}</code>\n` +
-          `📝 <b>Uso:</b> ${c.args ? `<code>${c.args}</code>` : '<i>—</i>'}\n` +
+          `<blockquote>${tgEmoji('cmdComando')} <b>Comando:</b> <code>${c.cmd}</code>\n` +
+          `${tgEmoji('cmdUso')} <b>Uso:</b> ${c.args ? `<code>${c.args}</code>` : '<i>—</i>'}\n` +
           `💬 <b>Qué hace:</b> <i>${c.desc}</i></blockquote>`,
       )
       .join('\n');
+    const catIcon = cat.iconId
+      ? `<tg-emoji emoji-id="${cat.iconId}">${cat.icon}</tg-emoji>`
+      : cat.icon;
     const body =
       `${tgEmoji('search')} <b>DataSeace · Comandos</b>\n` +
-      `${cat.icon} <b>${cat.title}</b>   ·   <code>${idx + 1}/${pages.length}</code>\n\n` +
+      `${catIcon} <b>${cat.title}</b>   ·   <code>${idx + 1}/${pages.length}</code>\n\n` +
       cards;
 
     const nav: ButtonOption[] = [];
@@ -652,6 +656,8 @@ interface CmdEntry {
 interface CmdCategory {
   key: string;
   icon: string;
+  /** custom_emoji_id animado (opcional): ícono de botón + acento en el header. */
+  iconId?: string;
   title: string;
   ownerOnly: boolean;
   cmds: CmdEntry[];
@@ -661,6 +667,7 @@ const CMD_CATEGORIES: CmdCategory[] = [
   {
     key: 'planes',
     icon: '💼',
+    iconId: TG_EMOJI.planes.id,
     title: 'Planes',
     ownerOnly: false,
     cmds: [
