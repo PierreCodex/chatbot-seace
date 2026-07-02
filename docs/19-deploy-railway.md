@@ -73,7 +73,7 @@ Plugins / externos:
 
 - **Costo/escala:** 2 servicios + Redis. Para el test alcanza con los planes chicos.
 - **Crawler:** con `CRAWLER_ENABLED=true` en el worker corre incremental cada hora +
-  completo 03:00 (Lima) + digests de alertas (8am / lunes 8am) + expiración (03:30).
+  completo cada 12h + digests de alertas (8am / lunes 8am) + expiración (03:30).
 - **Cold start del worker:** la primera corrida del crawler bootstrapea Playwright
   (~unos segundos); es normal.
 - **Logs:** Railway → cada servicio → Deployments → Logs.

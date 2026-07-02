@@ -9,12 +9,11 @@
 
 ## 0. TL;DR
 
-- **Dos perillas distintas**, no confundirlas:
-  1. **Cadencia del crawler** = cada cuánto traemos data de SEACE → **incremental 1h + completo 24h**.
-  2. **`DB_FRESHNESS` (6h)** = cuán vieja toleramos la data antes de ir a vivo.
-- **El bot consulta la BD primero**; solo cae a scrape en vivo (~30s) si la data supera el umbral de frescura.
+- **Cadencia del crawler** = cada cuánto traemos data de SEACE → **incremental 1h + completo 12h**.
+- **Para ACF**, el bot consulta la **BD completa** (sin umbral de frescura); solo cae a scrape en vivo si el objeto aún no está en BD.
+- **Para otras pestañas** (no ACF), aplica `DB_FRESHNESS = 6h` como umbral antes de ir a vivo.
 - **Producción:** automático (worker 24/7 + `CRAWLER_ENABLED=true`). **Local:** lo disparás vos con `pnpm crawl:acf`.
-- Si una búsqueda tarda 30-40s → la data local está vencida (>6h). No es un bug. → §7.
+- Si una búsqueda no-ACF tarda 30-40s → la data local está vencida (>6h). No es un bug. → §7.
 
 ---
 
@@ -22,19 +21,17 @@
 
 | Perilla | Pregunta que responde | Valor actual | Dónde vive |
 |---|---|---|---|
-| **Cadencia del crawler** | ¿Cada cuánto *intento* refrescar la data? | incremental **1h** + completo **24h** | `src/workers/crawler.scheduler.ts` |
-| **`DB_FRESHNESS`** | ¿Qué tan vieja *tolero* la data antes de ir en vivo? | **6h** | `src/modules/search/search.facade.ts` |
+| **Cadencia del crawler** | ¿Cada cuánto *intento* refrescar la data? | incremental **1h** + completo **12h** | `src/workers/crawler.scheduler.ts` |
+| **`DB_FRESHNESS`** | ¿Qué tan vieja *tolero* la data antes de ir en vivo? | **6h** (solo aplica a pestañas **no ACF**) | `src/modules/search/search.facade.ts` |
 
-**Regla de oro:** el umbral debe ser **≥ cadencia + margen**, nunca igual a la cadencia.
-Es un *colchón* para que un atraso/caída del crawler no penalice a todos los usuarios con
-30s. Con crawler de 1h, la data casi siempre tiene <1h → el umbral de 6h ni se nota; solo
-actúa de red de seguridad. Si se toca, es para **subirlo** (12-24h = más resiliencia),
-nunca para bajarlo.
+**Regla de oro para pestañas no-ACF:** el umbral debe ser **≥ cadencia + margen**, nunca
+igual a la cadencia. Es un *colchón* para que un atraso/caída del crawler no penalice a
+los usuarios con 30s. Con crawler de 1h, la data casi siempre tiene <1h → el umbral de 6h
+ni se nota; solo actúa de red de seguridad.
 
-> Nota histórica: el `DB_FRESHNESS = 6h` se fijó en el baseline F0-F4 (commit `c316b91`),
-> cuando la cadencia planeada era ~4×/día (≈6h). El crawler luego pasó a 1h (`a09aaf3`) y
-> el umbral quedó igual. No es un bug: un umbral mayor que la cadencia es correcto por
-> diseño. Decisión cerrada: **se queda en 6h**.
+**ACF es distinto:** como el dataset es pequeño y el crawler lo mantiene actualizado cada
+1h (incremental) + cada 12h (completo), `SearchFacade` **no aplica `DB_FRESHNESS`** a los
+anuncios de contratación futura. El bot devuelve todos los ACF que haya en la BD.
 
 ---
 
@@ -45,7 +42,7 @@ Vive en el **proceso worker** (no en el API), vía `@nestjs/schedule`. Dos jobs:
 | Job | Cron | Cadencia | Qué hace |
 |---|---|---|---|
 | `acf-incremental` | `0 0 * * * *` | **cada 1h** (minuto 0) | Pagina cada objeto desde la pág. 1 (orden DESC = lo nuevo primero) y **corta apenas una página viene 100% sin cambios** (early-stop). ~4s / ~9 requests sin novedades. |
-| `acf-full` | `0 0 3 * * *` | **1×/día (03:00)** | Pagina todo. Red de seguridad para ediciones de filas viejas, borrados y churn de igual conteo que el incremental no detecta. |
+| `acf-full` | `0 0 */12 * * *` | **cada 12h** (00:00 y 12:00) | Pagina todo. Red de seguridad para ediciones de filas viejas, borrados y churn de igual conteo que el incremental no detecta. |
 
 **Cómo "refresca" la frescura:** cada corrida hace `upsertMany`, que pone
 `scrapedAt = now()` en **todas** las filas tocadas — incluso las que no cambiaron
@@ -70,9 +67,10 @@ Para que los crons disparen hacen falta **dos** condiciones (en cualquier entorn
 
 `SearchFacade.search()` resuelve en 3 niveles:
 
-1. **DB-first** — `findByFilters` con `scrapedAt >= now − DB_FRESHNESS(6h)`. Si hay
-   filas frescas que matchean → las devuelve (`source: cached_db`, **~1s**).
-   - Caso especial ACF+entidad: si hay anuncios frescos del objeto pero ninguno de la
+1. **DB-first** — para ACF no aplica umbral de frescura; para otras pestañas usa
+   `scrapedAt >= now − DB_FRESHNESS(6h)`. Si hay filas que matchean → las devuelve
+   (`source: cached_db`, **~1s**).
+   - Caso especial ACF+entidad: si hay anuncios del objeto en la BD pero ninguno de la
      entidad pedida, devuelve **0 al instante** (SEACE no filtra ACF por entidad
      server-side y el crawler mantiene el set completo → 0 es la respuesta real).
 2. **Cache Redis** — misma combinación de filtros pedida hace <30min (resultado de un
@@ -80,8 +78,8 @@ Para que los crons disparen hacen falta **dos** condiciones (en cualquier entorn
 3. **Scrape en vivo** — ni BD ni cache resuelven → encola un job, scrapea SEACE
    (**~30s**) y entrega el resultado de forma asíncrona. `source: queued`.
 
-> La frescura (umbral de 6h) **solo aplica al nivel 1**. Es lo único que decide si una
-> fila de la BD "cuenta" o se considera vencida.
+> La frescura (umbral de 6h) **solo aplica al nivel 1 y solo para pestañas no-ACF**.
+> ACF devuelve todo lo que haya en la BD.
 
 ---
 
@@ -89,7 +87,7 @@ Para que los crons disparen hacen falta **dos** condiciones (en cualquier entorn
 
 | Entorno | Cómo se actualiza la data |
 |---|---|
-| **Producción** | **Automático.** Worker 24/7 + `CRAWLER_ENABLED=true` → incremental cada hora + completo 03:00. Sin comandos. |
+| **Producción** | **Automático.** Worker 24/7 + `CRAWLER_ENABLED=true` → incremental cada hora + completo cada 12h. Sin comandos. |
 | **Local** | **Manual** (no tenés el worker prendido esperando el tick). Corrés `pnpm crawl:acf` cuando querés data fresca. Opcional: `CRAWLER_ENABLED=true` + worker levantado replica el modo automático, pero hay que esperar al minuto 0 y dejar la máquina prendida. |
 
 ---
@@ -172,40 +170,38 @@ testear/demostrar, el comando manual (`pnpm crawl:acf`) suele ser más práctico
 # .env
 CRAWLER_ENABLED="true"        # prende los crons del crawler (default false)
 ```
-`DB_FRESHNESS` **no es env** — es una constante en `search.facade.ts` (6h). Cambiarla
-requiere editar el código (decisión cerrada: se queda en 6h).
+`DB_FRESHNESS` **no es env** — es una constante en `search.facade.ts` (6h). Aplica solo a
+pestañas no-ACF; ACF ignora el umbral y devuelve todo el dataset de la BD.
 
 ---
 
 ## 7. Troubleshooting — "la búsqueda tarda 30-40s"
 
-**Causa más común (99%):** la data local está vencida (>6h) y el crawler está apagado →
-el DB-first la descarta → cae a scrape en vivo.
+**Causa más común (99%) para pestañas no-ACF:** la data local está vencida (>6h) y el
+ crawler está apagado → el DB-first la descarta → cae a scrape en vivo.
+
+**Para ACF**, una búsqueda lenta solo pasa si el objeto pedido **aún no está en la BD**
+(por ejemplo, nunca se corrió `pnpm crawl:acf` o el objeto está vacío).
 
 **Diagnóstico:**
-1. ¿Cuándo corriste `pnpm crawl:acf` por última vez? Si fue hace >6h y el crawler está
-   off → esa es la causa.
+1. ¿Cuándo corriste `pnpm crawl:acf` por última vez? (solo importa para no-ACF si fue hace >6h).
 2. Mirá los logs: `DB-first hit (N) …` = salió de la BD (rápido); `queued job=…` = fue a
    vivo (lento).
 
 **Fix:**
-- **Local / demo:** `pnpm crawl:acf` → refresca → próxima búsqueda ~1s.
+- **Local / demo:** `pnpm crawl:acf` → refresca → próxima búsqueda ACF ~1s.
 - **Permanente / prod:** `CRAWLER_ENABLED=true` + worker corriendo → se refresca solo cada
   hora y nunca se vence.
 
-**Lo que NO es el problema:**
-- ❌ El código de búsqueda (consulta la BD primero, por diseño).
-- ❌ El umbral de 6h (es un valor de tuning correcto, no un bug).
-- ❌ La BD vacía (tiene la data; solo está "caducada" para el criterio de 6h).
-
-> La data vencida **sigue siendo data real y válida**; el único costo de no refrescar es
-> que el usuario espera los ~30s del scrape en vivo en vez de ~1s.
+**Lo que NO es el problema en ACF:**
+- ❌ El umbral de 6h (ACF ya no lo usa).
+- ❌ La BD "caducada" (ACF devuelve todo el dataset).
 
 ---
 
 ## 8. Resumen de decisiones cerradas
 
-- Cadencia crawler: **incremental 1h + completo 24h** (ya NO 4×/día).
-- `DB_FRESHNESS`: **6h** (se queda; umbral ≥ cadencia + margen es lo correcto).
+- Cadencia crawler: **incremental 1h + completo 12h**.
+- `DB_FRESHNESS`: **6h** para pestañas no-ACF; **ACF no aplica umbral** y devuelve todo el dataset de la BD.
 - Todo esto es **independiente del canal** (WhatsApp o Telegram): el crawler y la frescura
   alimentan la BD; el canal solo entrega. Ver [13 · Migración a Telegram](./13-telegram-migracion.md).

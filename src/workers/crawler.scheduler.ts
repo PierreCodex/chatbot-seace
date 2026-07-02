@@ -18,8 +18,9 @@ type CrawlMode = 'incremental' | 'full';
  *   - **Incremental cada hora**: paginа cada objeto desde la página 1 (orden
  *     DESC = lo nuevo primero) y corta apenas una página viene 100% sin cambios.
  *     Costo típico sin novedades ~4s / ~9 requests.
- *   - **Completo 1×/día** (03:00): pagina todo. Red de seguridad para ediciones
- *     de filas viejas, borrados y churn de igual conteo que el incremental no ve.
+ *   - **Completo cada 12h** (00:00 y 12:00): pagina todo. Red de seguridad para
+ *     ediciones de filas viejas, borrados y churn de igual conteo que el incremental
+ *     no ve.
  *
  * Gateado por `CRAWLER_ENABLED` (off por defecto). Un flag `running` evita que
  * el tick horario se solape con el completo (el worker es single-instance aquí).
@@ -39,7 +40,7 @@ export class CrawlerScheduler {
   ) {
     this.enabled = config.get('CRAWLER_ENABLED', { infer: true }) ?? false;
     if (this.enabled) {
-      this.logger.log('crawler ACF habilitado (incremental 1h + completo 03:00)');
+      this.logger.log('crawler ACF habilitado (incremental 1h + completo 12h)');
     }
   }
 
@@ -49,8 +50,8 @@ export class CrawlerScheduler {
     await this.runCrawl('incremental');
   }
 
-  @Cron('0 0 3 * * *', { name: 'acf-full' })
-  async dailyFull(): Promise<void> {
+  @Cron('0 0 */12 * * *', { name: 'acf-full' })
+  async fullCrawl(): Promise<void> {
     if (!this.enabled) return;
     await this.runCrawl('full');
   }

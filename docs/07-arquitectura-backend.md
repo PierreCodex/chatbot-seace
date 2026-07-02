@@ -161,7 +161,7 @@ src/
 │   │   └── hit-detection.service.ts # usa content_hash
 │   ├── crawler/                     # programado (NestJS Scheduler)
 │   │   ├── crawler.module.ts
-│   │   ├── crawler.scheduler.ts     # @Cron incremental 1h + completo diario
+│   │   ├── crawler.scheduler.ts     # @Cron incremental 1h + completo 12h
 │   │   │                            #   (IMPL real: src/workers/crawler.scheduler.ts,
 │   │   │                            #    in-process; early-stop DESC; sin scope-builder p/ACF)
 │   │   ├── scope-builder.service.ts # subs + top-N (Procedimientos, no MVP ACF)

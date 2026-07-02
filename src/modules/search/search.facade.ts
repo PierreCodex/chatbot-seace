@@ -73,8 +73,10 @@ export class SearchFacade {
     const startedAt = Date.now();
 
     // 1) DB-first.
+    // ACF es un dataset pequeño y completo; no filtramos por frescura para que
+    // el bot devuelva todos los anuncios acumulados, no solo los del último crawl.
     const fresh = await this.processes.findByFilters(req.tab, req.filters, {
-      maxAge: DB_FRESHNESS,
+      maxAge: req.tab === 'anuncios_futuros' ? undefined : DB_FRESHNESS,
       limit: RESULT_LIMIT,
     });
     if (fresh.length > 0) {
@@ -92,10 +94,10 @@ export class SearchFacade {
       const freshObjeto = await this.processes.findByFilters(
         req.tab,
         { objeto: req.filters.objeto },
-        { maxAge: DB_FRESHNESS, limit: 1 },
+        { limit: 1 },
       );
       if (freshObjeto.length > 0) {
-        this.logger.debug(`ACF fresco sin match de entidad "${req.filters.entityNombre}" → 0`);
+        this.logger.debug(`ACF sin match de entidad "${req.filters.entityNombre}" → 0`);
         await this.recordSearch(req, [], 'cached_db', Date.now() - startedAt);
         return { source: 'cached_db', processes: [], totalFound: 0 };
       }

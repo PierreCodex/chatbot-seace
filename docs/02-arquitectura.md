@@ -102,9 +102,10 @@ WhatsApp ─▶ Kapso ─▶ NestJS /webhook
 ```
 
 **Umbral de frescura por tipo de búsqueda** (configurable):
-- Suscripciones / búsquedas top-N (ya en scope del crawler) → 6 horas
-- Búsquedas fuera de scope que ya se persistieron en algún momento → 24 horas
-- Si el dato es más viejo que el umbral, se vuelve a scrapear y refrescar.
+- **ACF (anuncios de contratación futura)** → sin umbral; devuelve todo el dataset de la BD.
+- Otras pestañas (suscripciones / búsquedas top-N ya en scope del crawler) → 6 horas.
+- Búsquedas fuera de scope que ya se persistieron en algún momento → 24 horas.
+- Si el dato es más viejo que el umbral (y no es ACF), se vuelve a scrapear y refrescar.
 
 **Tiempo objetivo end-to-end**:
 - DB-hit: <1s (>50% del tráfico esperado una vez el crawler tenga 1-2 semanas de datos)

@@ -46,7 +46,7 @@ describe('CrawlerScheduler', () => {
     const repo = makeRepo();
     const scraper = { crawlAcf: vi.fn(async () => {}) };
     const sched = sub(scraper, repo, config(true));
-    await sched.dailyFull();
+    await sched.fullCrawl();
     expect(scraper.crawlAcf).toHaveBeenCalledWith(expect.objectContaining({ incremental: false }));
   });
 

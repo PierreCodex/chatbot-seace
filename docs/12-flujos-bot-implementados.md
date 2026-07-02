@@ -70,17 +70,17 @@ soft-nudge ──[Filtrar entidad]──▶ awaiting-entity
 ## 4. Resolución de la búsqueda ACF (`SearchFacade`, DB-first)
 
 3 niveles:
-1. **DB-first**: `processes` frescos (<6h) que matchean filtros → inline (`cached_db`).
+1. **DB-first**: para ACF devuelve todo el dataset de `processes` que matchee (sin umbral de frescura); para otras pestañas filtra `scrapedAt < 6h`. Resuelve inline (`cached_db`).
 2. **Cache Redis** (30 min): combinación de filtros pedida hace poco → inline (`cache`).
 3. **Encolar job** de scrape (`queued`); el contexto vive en Redis por `jobId`; el worker scrape + `SearchResultsListener` entrega.
 
-Con el crawler ACF poblando la BD (~175 anuncios, frescos), las búsquedas objeto-only y por entidad resuelven **inline**. El path `queued` es raro (BD vieja >6h).
+Con el crawler ACF poblando la BD, las búsquedas objeto-only y por entidad resuelven **inline**. El path `queued` es raro (objeto aún no scrapeado).
 
-**El scrape ACF es por fetch PURO** (`AcfHttpScraper`, sin Playwright, como entidades): `GET buscador` → cookies + ViewState + valores de objeto → `POST buscar`/`paginar`. Crawl de los 4 objetos ≈ **10s** (validado: bien 37, servicio 83, obra 40, consultoría 15). `SeaceAdapter.search` enruta ACF aquí (fallback a navegador si falla). Beneficia sobre todo al **crawler F5** (incremental cada 1h con early-stop + completo diario) y quita Chromium del camino de ACF.
+**El scrape ACF es por fetch PURO** (`AcfHttpScraper`, sin Playwright, como entidades): `GET buscador` → cookies + ViewState + valores de objeto → `POST buscar`/`paginar`. Crawl de los 4 objetos ≈ **10s** (validado: bien 37, servicio 83, obra 40, consultoría 15). `SeaceAdapter.search` enruta ACF aquí (fallback a navegador si falla). Beneficia sobre todo al **crawler F5** (incremental cada 1h con early-stop + completo cada 12h) y quita Chromium del camino de ACF.
 
 **Filtro por entidad en ACF (cliente).** SEACE **no** permite acotar los anuncios ACF por entidad desde el form (solo por objeto): el form ACF expone campos de entidad pero requieren el sub-modal "Buscar Entidad". Por eso el filtro por entidad se aplica **en cliente**:
 - **DB-first** (`processes.repo.findByFilters`): `entityNombre` con `equals(insensitive)`. Como anuncio y entidad provienen de SEACE, el nombre coincide (verificado contra datos reales).
-- **Short-circuit anti-volcado** (`SearchFacade`): si DB-first por entidad da 0 **pero hay anuncios frescos (<6h) del objeto** (el crawler mantiene el set ACF completo), entonces 0 es la respuesta real → se devuelve `cached_db` vacío **al instante**, sin encolar. Esto arregla el bug en que elegir una entidad **sin** anuncios ACF encolaba un scrape que —al solo filtrar por objeto— **volcaba anuncios de otras entidades**.
+- **Short-circuit anti-volcado** (`SearchFacade`): si DB-first por entidad da 0 **pero hay anuncios del objeto en la BD** (el crawler mantiene el set ACF completo), entonces 0 es la respuesta real → se devuelve `cached_db` vacío **al instante**, sin encolar. Esto arregla el bug en que elegir una entidad **sin** anuncios ACF encolaba un scrape que —al solo filtrar por objeto— **volcaba anuncios de otras entidades**.
 - **Red de seguridad en el scrape** (`SeaceAdapter.filterByEntity`): si igual se encola (DB vieja), tras raspar el objeto se **post-filtra** por `sameEntityName` (normaliza mayúsculas/tildes/espacios) y se ajusta `totalReported` al conteo filtrado. Cubre tanto el path HTTP como el fallback navegador.
 
 ---
@@ -174,7 +174,7 @@ Aplica en el filtro ACF (`awaiting-entity`) y en el resolver standalone (`entity
 ## 10. Pendiente (no implementado)
 
 - **Mis alertas / suscripciones (UX-4)** + motor F5. El **crawler ya está hecho**
-  (`CrawlerScheduler`: incremental 1h + completo diario, gateado por `CRAWLER_ENABLED`,
+  (`CrawlerScheduler`: incremental 1h + completo cada 12h, gateado por `CRAWLER_ENABLED`,
   verificado en vivo); **falta** detección de hits (fan-out a suscripciones), expiración,
   notificación y los Flows del bot. Bloqueado parcialmente por verificación de portafolio
   Meta (Flows/plantillas) — por eso el envío proactivo se conecta al final.

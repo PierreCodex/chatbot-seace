@@ -495,13 +495,13 @@ psql $DATABASE_URL -c "select kind, status, sent_at from notifications order by 
       `wa_users.plan`, `plan_expires_at` (`20260610021500_add_subscription_expiry_and_user_plan`).
 - [x] `CrawlerScheduler` (`src/workers/crawler.scheduler.ts`, **in-process en el worker**
       vía `@nestjs/schedule`, no BullMQ): **incremental cada 1h** (`@Cron('0 0 * * * *')`)
-      + **completo 1×/día 03:00** (`@Cron('0 0 3 * * *')`). Gateado por `CRAWLER_ENABLED`,
+      + **completo cada 12h** (`@Cron('0 0 */12 * * *')`). Gateado por `CRAWLER_ENABLED`,
       guard `running` anti-solape. **Early-stop por orden DESC**:
       `AcfHttpScraper.crawlAcf({incremental, onPage})` pagina desde la 1 y corta el objeto
       cuando una página llega 100% sin cambios (`inserted+updated===0`) — supera el "4×/día
       scope-fijo" original (más fresco, menos requests). Verificado en vivo (`+1 nuevo,
       =60 sin cambio, 22s`). Hallazgo: el filtro de fecha de SEACE en ACF es inservible
-      (lo ignora server-side); el completo diario es la red para ediciones/borrados.
+      (lo ignora server-side); el completo cada 12h es la red para ediciones/borrados.
       _Falta_: que el crawler dispare `HitDetectionService` tras el upsert (pieza siguiente).
 - [ ] `HitDetectionService` (**fan-out**): tras el upsert, matchea las filas nuevas contra
       `subscriptions` activas y **no vencidas** (objeto + `entity_ruc` si A1) e inserta
