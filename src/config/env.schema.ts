@@ -56,6 +56,22 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+
+  // IA conversacional (NLU-first, docs/21). El proveedor es intercambiable vía
+  // LlmPort; se arranca con Anthropic (OpenAI cuando haya key). Sin LLM_API_KEY
+  // el router NLU queda inactivo y el bot se comporta como siempre (botones).
+  LLM_PROVIDER: z.enum(['anthropic', 'openai']).default('anthropic'),
+  LLM_API_KEY: z.string().default(''),
+  LLM_MODEL: z.string().default('claude-haiku-4-5'),
+  // Kill-switch del NLU: apagarlo restaura la experiencia actual sin deploy.
+  NLU_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  // Presupuesto de la llamada NLU; al agotarse → fallback al menú de botones.
+  // 8s: el parse típico toma 1.5-2.5s pero la 1.ª llamada del proceso (TLS) y
+  // los picos del proveedor superan 4s — verificado en chat-sim el 2026-07-09.
+  NLU_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
 });
 
 export type Env = z.infer<typeof envSchema>;

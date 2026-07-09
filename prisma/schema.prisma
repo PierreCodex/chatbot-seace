@@ -315,6 +315,10 @@ model Subscription {
   objeto           ObjetoContratacion?
   departamento     String?
   keyword          String?
+  // Tema de la alerta (F2, docs/22): sinónimos CONGELADOS al crearla — el
+  // matcher exige que la descripción del anuncio contenga alguno. Congelados
+  // para que el match sea determinista (nunca LLM en el momento del crawl).
+  keywordTerms     String[]            @default([]) @map("keyword_terms")
   valorMin         Decimal?            @map("valor_min") @db.Decimal(18, 2)
   valorMax         Decimal?            @map("valor_max") @db.Decimal(18, 2)
   frequency        SubFrequency        @default(daily)

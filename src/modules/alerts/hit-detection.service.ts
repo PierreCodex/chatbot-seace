@@ -40,7 +40,13 @@ export class HitDetectionService {
     );
     let created = 0;
     for (const p of procs) {
-      const matches = await this.subs.findActiveMatching(p.objeto!, p.entityNombre ?? null);
+      // Candidatas por objeto+entidad (SQL) y filtro por TEMA (F2, docs/22):
+      // la alerta con keyword_terms exige que la descripción contenga alguno.
+      // Determinista — los términos se congelaron al crear la alerta; el LLM
+      // jamás participa en el momento del crawl.
+      const matches = (
+        await this.subs.findActiveMatching(p.objeto!, p.entityNombre ?? null)
+      ).filter((sub) => matchesTheme(sub.keywordTerms, p.descripcion));
       for (const sub of matches) {
         if (await this.hits.createIfNew(sub.id, p.id)) {
           created++;
@@ -55,4 +61,30 @@ export class HitDetectionService {
     }
     return grouped;
   }
+}
+
+/**
+ * ¿El anuncio corresponde al tema de la alerta? Sin términos → alerta clásica
+ * (pasa siempre). Con términos → la descripción debe contener ALGUNO, comparando
+ * normalizado (minúsculas, sin tildes) para tolerar la acentuación inconsistente
+ * de SEACE. Exportada para poder testearla directo.
+ */
+export function matchesTheme(
+  terms: string[] | null | undefined,
+  descripcion: string | null,
+): boolean {
+  if (!terms?.length) return true;
+  if (!descripcion) return false;
+  const desc = normalize(descripcion);
+  return terms.some((t) => {
+    const term = normalize(t);
+    return term.length > 0 && desc.includes(term);
+  });
+}
+
+function normalize(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
 }

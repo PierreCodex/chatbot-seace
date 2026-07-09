@@ -20,17 +20,24 @@ const PREMIUM_CONTACT_URL = 'https://t.me/pierrecodex';
 
 type Step = 'awaiting-frequency' | 'awaiting-duration' | 'manage';
 
-/** Contexto de la última búsqueda ACF, para "Avísame" sin re-preguntar filtros. */
+/** Contexto de la última búsqueda ACF, para "Avísame" sin re-preguntar filtros.
+ * `keyword`/`sinonimos` llegan del NLU (o del rubro elegido en el hub) — F2:
+ * la alerta hereda el TEMA y lo congela. */
 export interface LastAcf {
   objeto: ObjetoContratacion;
   entityRuc?: string | null;
   entityNombre?: string | null;
+  keyword?: string | null;
+  sinonimos?: string[] | null;
 }
 
 interface SubDraft {
   objeto: ObjetoContratacion;
   entityRuc?: string | null;
   entityNombre?: string | null;
+  keyword?: string | null;
+  /** Tema congelado (keyword + sinónimos, dedup) — va tal cual a la BD. */
+  keywordTerms?: string[];
   frequency?: SubFrequency;
 }
 
@@ -116,6 +123,11 @@ export class SubscribeFlow implements Flow {
       objeto: last.objeto,
       entityRuc: last.entityRuc ?? null,
       entityNombre: last.entityNombre ?? null,
+      // F2: hereda el tema de la búsqueda y CONGELA los términos (keyword +
+      // sinónimos del NLU) — el matcher del crawler compara contra estos,
+      // deterministas, sin depender del LLM al momento del crawl.
+      keyword: last.keyword ?? null,
+      keywordTerms: dedupTerms([last.keyword, ...(last.sinonimos ?? [])]),
     };
     // Mensaje NUEVO (sin edit) para no pisar la tarjeta de resultados: queda en
     // el historial. A partir de acá el flujo edita sus propios mensajes.
@@ -192,6 +204,8 @@ export class SubscribeFlow implements Flow {
         objeto: draft.objeto,
         entityRuc: draft.entityRuc ?? null,
         entityNombre: draft.entityNombre ?? null,
+        keyword: draft.keyword ?? null,
+        keywordTerms: draft.keywordTerms ?? [],
         frequency: draft.frequency,
         expiresAt: durationToDate(dur),
       });
@@ -222,8 +236,9 @@ export class SubscribeFlow implements Flow {
     const lines = list.map((s, i) => {
       const alcance = s.entityNombre ? esc(s.entityNombre) : 'Todas las entidades';
       const objeto = s.objeto ? OBJETO_LABELS[s.objeto as ObjetoContratacion] : '—';
+      const tema = s.keyword ? ` · 🎯 ${esc(s.keyword)}` : '';
       return (
-        `${i + 1}. <b>${esc(objeto)}</b> · ${alcance}\n` +
+        `${i + 1}. <b>${esc(objeto)}</b> · ${alcance}${tema}\n` +
         `    <i>${FREQ_LABEL[s.frequency]}</i> · ⏳ ${vencimientoLabel(s.expiresAt)}`
       );
     });
@@ -346,7 +361,9 @@ export class SubscribeFlow implements Flow {
   private scopeLine(draft: SubDraft): string {
     const objeto = OBJETO_LABELS[draft.objeto];
     const alcance = draft.entityNombre ? esc(draft.entityNombre) : 'Todas las entidades';
-    return `📦 <b>${esc(objeto)}</b>\n🏛️ ${alcance}`;
+    // F2: la alerta con tema avisa SOLO de anuncios que lo contengan.
+    const tema = draft.keyword ? `\n🎯 Tema: <i>${esc(draft.keyword)}</i>` : '';
+    return `📦 <b>${esc(objeto)}</b>\n🏛️ ${alcance}${tema}`;
   }
 
   private allowedFreqs(eff: EffectivePlan): SubFrequency[] {
@@ -383,6 +400,21 @@ export class SubscribeFlow implements Flow {
 }
 
 // ── helpers ──
+
+/** keyword + sinónimos → términos únicos (trim, case-insensitive) del tema. */
+function dedupTerms(terms: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of terms) {
+    const clean = t?.trim();
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+  }
+  return out;
+}
 
 function parseId(input: string, prefix: string): string | null {
   return input.startsWith(`${prefix}:`) ? input.slice(prefix.length + 1) : null;

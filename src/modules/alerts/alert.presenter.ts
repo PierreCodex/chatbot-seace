@@ -20,6 +20,8 @@ export class AlertPresenter {
   build(to: string, sub: StoredSubscription, procs: StoredProcess[]): OutboundMessage {
     const objeto = sub.objeto ? OBJETO_LABELS[sub.objeto] : 'anuncios';
     const alcance = sub.entityNombre ? esc(sub.entityNombre) : 'todas las entidades';
+    // F2: el aviso dice a qué TEMA corresponde ("coincide con tu alerta de X").
+    const tema = sub.keyword ? ` · 🎯 <i>${esc(sub.keyword)}</i>` : '';
     const n = procs.length;
     const cards = procs
       .slice(0, MAX_CARDS)
@@ -28,7 +30,7 @@ export class AlertPresenter {
     const extra = n > MAX_CARDS ? `\n<i>…y ${n - MAX_CARDS} más.</i>` : '';
     const body =
       `${tgEmoji('alert')} <b>Nuevo${n === 1 ? '' : 's'} anuncio${n === 1 ? '' : 's'} para tu alerta</b>\n` +
-      `📦 <b>${esc(objeto)}</b> · 🏛️ ${alcance}\n` +
+      `📦 <b>${esc(objeto)}</b> · 🏛️ ${alcance}${tema}\n` +
       tgDivider(8) +
       '\n' +
       cards +

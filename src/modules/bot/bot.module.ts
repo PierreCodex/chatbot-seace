@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { MessagingModule } from '../../adapters/messaging/messaging.module';
 import { AdminModule } from '../admin/admin.module';
+import { AiModule } from '../ai/ai.module';
 import { SearchModule } from '../search/search.module';
 import { ConversationService } from './conversation.service';
 import { ConversationStore } from './conversation.store';
 import { FlowRegistry } from './flow.registry';
 import { EntityResolverFlow } from './flows/entity-resolver.flow';
 import { MainMenuFlow } from './flows/main-menu.flow';
+import { NluRouterFlow } from './flows/nlu-router.flow';
 import { SearchAnunciosFlow } from './flows/search-anuncios.flow';
 import { SearchProcesosFlow } from './flows/search-procesos.flow';
 import { SubscribeFlow } from './flows/subscribe.flow';
@@ -17,7 +19,7 @@ import { WaUsersService } from './wa-users.service';
 import { WebhookController } from './webhook.controller';
 
 @Module({
-  imports: [MessagingModule.register(), SearchModule, AdminModule],
+  imports: [MessagingModule.register(), SearchModule, AdminModule, AiModule],
   // Ambos controllers se registran; solo recibe tráfico el del canal activo
   // (cada plataforma llama únicamente a su propia ruta).
   controllers: [WebhookController, TelegramWebhookController],
@@ -31,6 +33,7 @@ import { WebhookController } from './webhook.controller';
     EntityResolverFlow,
     SearchProcesosFlow,
     SubscribeFlow,
+    NluRouterFlow,
     WaUsersService,
     ConversationService,
     {
@@ -42,12 +45,14 @@ import { WebhookController } from './webhook.controller';
         entity: EntityResolverFlow,
         searchProcesos: SearchProcesosFlow,
         subscribe: SubscribeFlow,
+        nlu: NluRouterFlow,
       ) => {
         registry.register(mainMenu);
         registry.register(anuncios);
         registry.register(entity);
         registry.register(searchProcesos);
         registry.register(subscribe);
+        registry.register(nlu);
         return true;
       },
       inject: [
@@ -57,6 +62,7 @@ import { WebhookController } from './webhook.controller';
         EntityResolverFlow,
         SearchProcesosFlow,
         SubscribeFlow,
+        NluRouterFlow,
       ],
     },
   ],

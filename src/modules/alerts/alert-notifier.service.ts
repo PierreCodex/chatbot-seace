@@ -80,7 +80,12 @@ export class AlertNotifierService {
   async previewSub(sub: StoredSubscription, toChatId: string): Promise<number> {
     const procs = await this.processes.findByFilters(
       'anuncios_futuros',
-      { objeto: sub.objeto ?? undefined, entityNombre: sub.entityNombre ?? undefined },
+      {
+        objeto: sub.objeto ?? undefined,
+        entityNombre: sub.entityNombre ?? undefined,
+        // F2: el preview respeta el tema de la alerta (mismo criterio del matcher).
+        keywords: sub.keywordTerms?.length ? sub.keywordTerms : undefined,
+      },
       { limit: 5 },
     );
     if (procs.length === 0) return 0;

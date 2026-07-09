@@ -9,8 +9,12 @@ import type { ObjetoContratacion, SearchFilters } from '../../../ports/persisten
 import { EntitySearchService } from '../../search/entity-search.service';
 import { SearchFacade } from '../../search/search.facade';
 import { AcfResultsPresenter } from '../../search/presenters/acf-results.presenter';
+import { FlowRegistry } from '../flow.registry';
 import { entityTitle } from '../presenters/entity.presenter';
 import type { Flow, FlowContext, FlowResult } from '../types';
+// Solo el TIPO (se borra al compilar): la instancia llega vía FlowRegistry
+// para no crear un ciclo de DI con NluRouterFlow.
+import type { NluRouterFlow } from './nlu-router.flow';
 
 const FLOW_ID = 'search-anuncios';
 const MAX_ENTITY_CHOICES = 10;
@@ -61,6 +65,7 @@ export class SearchAnunciosFlow implements Flow {
     private readonly entitySearch: EntitySearchService,
     private readonly searchFacade: SearchFacade,
     private readonly resultsPresenter: AcfResultsPresenter,
+    private readonly registry: FlowRegistry,
     @Inject(FILES_PORT) private readonly files: FilesPort,
     config: ConfigService<Env, true>,
   ) {
@@ -183,6 +188,15 @@ export class SearchAnunciosFlow implements Flow {
       return { messages: [textMsg(ctx, friendlyError(err))], deleteMessageIds: del };
     }
     if (matches.length === 0) {
+      // Segunda oportunidad NLU: quizá no era un nombre de entidad sino una
+      // consulta nueva en lenguaje natural escrita a media del wizard.
+      const nlu = this.registry.get('nlu') as NluRouterFlow | undefined;
+      if (nlu?.enabled) {
+        const r = await nlu.handleFreeText(ctx);
+        if (r) {
+          return { ...r, deleteMessageIds: [...(r.deleteMessageIds ?? []), ...del] };
+        }
+      }
       return {
         messages: [
           this.isTelegram

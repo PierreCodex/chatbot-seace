@@ -6,8 +6,12 @@ import type { EntityLookupMatch } from '../../../ports/entity-lookup.port';
 import { FILES_PORT, type FilesPort } from '../../../ports/files.port';
 import type { OutboundMessage } from '../../../ports/messaging.port';
 import { EntitySearchService } from '../../search/entity-search.service';
+import { FlowRegistry } from '../flow.registry';
 import { EntityResultsPresenter } from '../presenters/entity.presenter';
 import type { Flow, FlowContext, FlowResult } from '../types';
+// Solo el TIPO (se borra al compilar): la instancia llega vía FlowRegistry para
+// no crear el ciclo de DI NluRouterFlow ↔ EntityResolverFlow.
+import type { NluRouterFlow } from './nlu-router.flow';
 import { entitiesOverflowMessages, friendlyError } from './search-anuncios.flow';
 
 const FLOW_ID = 'entity-resolver';
@@ -42,6 +46,7 @@ export class EntityResolverFlow implements Flow {
   constructor(
     private readonly entitySearch: EntitySearchService,
     private readonly presenter: EntityResultsPresenter,
+    private readonly registry: FlowRegistry,
     @Inject(FILES_PORT) private readonly files: FilesPort,
     config: ConfigService<Env, true>,
   ) {
@@ -187,6 +192,17 @@ export class EntityResolverFlow implements Flow {
       };
     }
     if (matches.length === 0) {
+      // Segunda oportunidad NLU: quizá no era un nombre de entidad sino una
+      // consulta nueva en lenguaje natural ("muéstrame los anuncios de bienes
+      // de todas las entidades") escrita mientras este paso esperaba texto.
+      // Se excluye `buscar_entidad` para no re-entrar aquí en bucle.
+      const nlu = this.registry.get('nlu') as NluRouterFlow | undefined;
+      if (nlu?.enabled) {
+        const r = await nlu.handleFreeText(ctx, { skip: ['buscar_entidad'] });
+        if (r) {
+          return { ...r, deleteMessageIds: [...(r.deleteMessageIds ?? []), ...(del ?? [])] };
+        }
+      }
       return {
         messages: [this.noEntidadesMsg(ctx), this.followup(ctx)],
         nextStep: 'awaiting-query',

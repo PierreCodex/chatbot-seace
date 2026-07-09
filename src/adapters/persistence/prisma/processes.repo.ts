@@ -33,8 +33,24 @@ export class PrismaProcessesRepo implements ProcessesRepoPort {
         // ACF no trae RUC en sus filas → se filtra por nombre exacto (ambos
         // nombres provienen de SEACE, así que coinciden).
         ...(f.entityNombre && { entityNombre: { equals: f.entityNombre, mode: 'insensitive' } }),
+        // NLU "ubicación": anuncios de cualquiera de las entidades de la zona.
+        ...(f.entityNombres?.length && {
+          entityNombre: { in: f.entityNombres, mode: 'insensitive' },
+        }),
         ...(f.objeto && { objeto: f.objeto }),
         ...(f.keyword && { descripcion: { contains: f.keyword, mode: 'insensitive' } }),
+        // Sinónimos del NLU: basta que la descripción contenga UNO (OR-ILIKE).
+        ...(f.keywords?.length && {
+          OR: f.keywords.map((k) => ({
+            descripcion: { contains: k, mode: 'insensitive' as const },
+          })),
+        }),
+        // Exclusiones ("pero no carreteras"): NOT de cada término (AND de NOTs).
+        ...(f.excludeKeywords?.length && {
+          NOT: f.excludeKeywords.map((k) => ({
+            descripcion: { contains: k, mode: 'insensitive' as const },
+          })),
+        }),
         ...(maxAgeAt && { scrapedAt: { gte: maxAgeAt } }),
       },
       include: PrismaProcessesRepo.DETAILS,

@@ -8,16 +8,11 @@ import { AcfResultsPresenter } from '../../search/presenters/acf-results.present
 import { MenuPresenter } from '../presenters/menu.presenter';
 import type { Flow, FlowContext, FlowResult } from '../types';
 import { EntityResolverFlow } from './entity-resolver.flow';
+// AcfResultsState: estado de la lista paginada (incluye el hub de rubros NLU).
+import { isFreeTextQuery, NluRouterFlow, type AcfResultsState } from './nlu-router.flow';
 import { SearchAnunciosFlow } from './search-anuncios.flow';
 import { SearchProcesosFlow } from './search-procesos.flow';
 import { SubscribeFlow } from './subscribe.flow';
-
-/** Estado de la lista paginada de resultados ACF (guardado tras una búsqueda). */
-interface AcfResultsState {
-  ids: string[];
-  total: number;
-  pdfUrl?: string | null;
-}
 
 @Injectable()
 export class MainMenuFlow implements Flow {
@@ -29,6 +24,7 @@ export class MainMenuFlow implements Flow {
     private readonly entityFlow: EntityResolverFlow,
     private readonly searchFlow: SearchProcesosFlow,
     private readonly subscribeFlow: SubscribeFlow,
+    private readonly nluFlow: NluRouterFlow,
     private readonly acfPresenter: AcfResultsPresenter,
     @Inject(PROCESSES_REPO) private readonly processes: ProcessesRepoPort,
   ) {}
@@ -38,6 +34,9 @@ export class MainMenuFlow implements Flow {
 
     // Navegación de la lista paginada de resultados ACF (◀/▶).
     if (input.startsWith('acfpage:')) return this.onAcfPage(ctx, input);
+    // Hub de rubros del NLU (rubro:N / rubro:all / rubro:back): drill-down
+    // in-place sobre el resultado ya clasificado. Delegado al flow NLU.
+    if (input.startsWith('rubro:')) return this.nluFlow.onRubroAction(ctx);
 
     // El usuario eligió una opción del menú o un botón de resultados.
     switch (input) {
@@ -103,7 +102,17 @@ export class MainMenuFlow implements Flow {
 
       case 'menu:main':
       default: {
-        // Cualquier otro input (incl. "hola", saludos, basura): mostrar el menú.
+        // Texto libre "huérfano" → NLU (docs/21 §3.1): consulta en lenguaje
+        // natural desde el menú/idle. Solo aquí — los wizards activos reciben
+        // su texto por state.flowId, así que el NLU nunca les roba input. Si
+        // el NLU está apagado, sin key o falla, cae al menú (fallback invisible).
+        if (input !== 'menu:main' && !ctx.isNewConversation && isFreeTextQuery(input)) {
+          if (this.nluFlow.enabled) {
+            const r = await this.nluFlow.handleFreeText(ctx);
+            if (r) return r;
+          }
+        }
+        // Cualquier otro input (incl. botones viejos, basura): mostrar el menú.
         // Primer contacto / `/start` → banner + menú. Volver al menú → desvanece el
         // mensaje actual (replace) y muestra el menú fresco.
         const messages = ctx.isNewConversation
@@ -143,7 +152,13 @@ export class MainMenuFlow implements Flow {
           index: idx,
           pages: res.ids.length,
           total: res.total,
-          pdfUrl: res.pdfUrl ?? undefined,
+          // PDF de la vista activa (rubro → PDF del rubro); el wizard clásico
+          // no setea activePdfUrl y usa el general como siempre.
+          pdfUrl: (res.activePdfUrl !== undefined ? res.activePdfUrl : res.pdfUrl) ?? undefined,
+          // Hub de rubros activo: conservar la etiqueta del filtro y el botón
+          // "🔙 Rubros" mientras se pagina dentro de la vista.
+          filterLabel: res.activeLabel ?? undefined,
+          backToRubros: Boolean(res.rubros?.length),
         }),
       ],
       navigation: 'edit',

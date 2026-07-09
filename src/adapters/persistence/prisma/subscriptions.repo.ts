@@ -22,6 +22,7 @@ export class PrismaSubscriptionsRepo implements SubscriptionsRepoPort {
         objeto: data.objeto ?? null,
         departamento: data.departamento ?? null,
         keyword: data.keyword ?? null,
+        keywordTerms: data.keywordTerms ?? [],
         valorMin: data.valorMin ?? null,
         valorMax: data.valorMax ?? null,
         frequency: data.frequency ?? 'daily',

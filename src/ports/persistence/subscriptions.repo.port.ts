@@ -11,7 +11,11 @@ export interface SubscriptionCreateInput {
   tipoSeleccionIds?: number[];
   objeto?: ObjetoContratacion | null;
   departamento?: string | null;
+  /** Tema legible de la alerta ("fibra óptica") — se muestra al usuario. */
   keyword?: string | null;
+  /** Sinónimos CONGELADOS al crear (F2, docs/22): el matcher exige que la
+   * descripción contenga alguno. Vacío = alerta sin tema (solo objeto/entidad). */
+  keywordTerms?: string[];
   valorMin?: number | null;
   valorMax?: number | null;
   frequency?: SubFrequency;

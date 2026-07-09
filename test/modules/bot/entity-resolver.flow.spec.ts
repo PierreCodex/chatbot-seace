@@ -12,9 +12,12 @@ const files = { hostEntitiesPdf: vi.fn(), hostAcfPdf: vi.fn(), getPdf: vi.fn() }
 
 function makeFlow(channel: 'whatsapp' | 'telegram' = 'whatsapp'): EntityResolverFlow {
   const config = { get: () => channel };
+  // Registry sin flow 'nlu' registrado → la segunda oportunidad NLU no aplica.
+  const registry = { get: vi.fn() };
   return new EntityResolverFlow(
     entitySearch as never,
     presenter as never,
+    registry as never,
     files as never,
     config as never,
   );

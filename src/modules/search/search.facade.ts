@@ -85,19 +85,26 @@ export class SearchFacade {
       return { source: 'cached_db', processes: fresh, totalFound: fresh.length };
     }
 
-    // 1b) ACF + filtro de entidad con dataset fresco: SEACE no filtra ACF por
-    // entidad server-side (lo hacemos en cliente) y el crawler mantiene el set
-    // ACF **completo**. Si hay anuncios frescos del objeto pero ninguno de la
-    // entidad pedida, 0 es la respuesta real → la damos al instante en vez de
-    // encolar un scrape (~10s) que tras filtrar daría 0 igual.
-    if (req.tab === 'anuncios_futuros' && req.filters.entityNombre) {
+    // 1b) ACF + filtros locales con dataset fresco: SEACE no filtra ACF por
+    // entidad/keywords server-side (lo hacemos en cliente) y el crawler mantiene
+    // el set ACF **completo**. Si hay anuncios frescos del objeto pero ninguno
+    // matchea los filtros locales (entidad, entidades de una zona, sinónimos o
+    // exclusiones del NLU), 0 es la respuesta real → se da al instante en vez
+    // de encolar un scrape (~10s) que tras filtrar daría 0 igual.
+    const hasLocalAcfFilters = Boolean(
+      req.filters.entityNombre ||
+      req.filters.entityNombres?.length ||
+      req.filters.keywords?.length ||
+      req.filters.excludeKeywords?.length,
+    );
+    if (req.tab === 'anuncios_futuros' && hasLocalAcfFilters) {
       const freshObjeto = await this.processes.findByFilters(
         req.tab,
         { objeto: req.filters.objeto },
         { limit: 1 },
       );
       if (freshObjeto.length > 0) {
-        this.logger.debug(`ACF sin match de entidad "${req.filters.entityNombre}" → 0`);
+        this.logger.debug(`ACF sin match con filtros locales (objeto=${req.filters.objeto}) → 0`);
         await this.recordSearch(req, [], 'cached_db', Date.now() - startedAt);
         return { source: 'cached_db', processes: [], totalFound: 0 };
       }

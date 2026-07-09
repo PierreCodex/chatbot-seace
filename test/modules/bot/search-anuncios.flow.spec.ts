@@ -9,10 +9,13 @@ const presenter = { build: vi.fn() };
 function makeFlow(): SearchAnunciosFlow {
   const files = { hostAcfPdf: vi.fn(), hostEntitiesPdf: vi.fn(), getPdf: vi.fn() };
   const config = { get: () => 'whatsapp' };
+  // Registry sin flow 'nlu' registrado → la segunda oportunidad NLU no aplica.
+  const registry = { get: vi.fn() };
   return new SearchAnunciosFlow(
     entitySearch as never,
     facade as never,
     presenter as never,
+    registry as never,
     files as never,
     config as never,
   );

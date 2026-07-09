@@ -22,6 +22,8 @@
     "crawl:entities": "pnpm build && node --env-file=.env scripts/crawl-entities.mjs",
     "crawl:acf": "pnpm build && node --env-file=.env scripts/crawl-acf.mjs",
     "chat:sim": "pnpm build && node --env-file=.env scripts/chat-sim.mjs",
+    "nlu:smoke": "pnpm build && node --env-file=.env scripts/nlu-smoke.mjs",
+    "webhook": "node --env-file=.env scripts/webhook.mjs",
     "alerts:preview": "pnpm build && node --env-file=.env scripts/alerts-preview.mjs",
     "test": "vitest run",
     "test:repos": "cross-env TEST_REPOS=1 vitest run",
@@ -29,6 +31,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@nestjs/common": "^10.4.15",
     "@nestjs/config": "^3.3.0",
     "@nestjs/core": "^10.4.15",

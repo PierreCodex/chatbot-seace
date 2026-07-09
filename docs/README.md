@@ -23,6 +23,10 @@ Diseño técnico inicial del chatbot WhatsApp para consultar contrataciones púb
 | 17 | [Roles, permisos y comandos admin](./17-roles-permisos-alertas.md) | **Diseño + estado**: roles owner/seller (env vs BD), planes free/premium, cobro manual (sin Stars), anti-escalamiento, plan efectivo + vencimientos, auditoría inmutable, fases 1–5 implementadas + mapa de archivos |
 | 18 | [Comandos del bot — guía práctica](./18-comandos-admin.md) | **Cheatsheet operativo**: cada comando (`/miplan` `/activar` `/extender` `/usuario` `/agregarvendedor` `/panico`…) con sintaxis, ejemplos, quién puede usarlo, flujo típico de cobro y reglas que el bot hace cumplir |
 | 19 | [Deploy en Railway](./19-deploy-railway.md) | Despliegue para el test en vivo: 1 `Dockerfile` (con Chromium) + 2 servicios (api/worker) + Redis plugin + Supabase externo; variables de entorno por servicio, `setWebhook` y verificación |
+| 20 | [Propuesta IA + RAG (original)](./20-propuesta-ia-acf.md) | Propuesta inicial de NLU + embeddings/pgvector para ACF — superada por el doc 21 (el RAG quedó reservado para Procedimientos) |
+| 21 | [IA conversacional NLU-first](./21-propuesta-nlu-conversacional.md) | **Diseño cerrado**: el usuario escribe en lenguaje natural y el LLM solo interpreta (intents, filtros, sinónimos); respuestas siempre por plantilla; re-rank + FAQ curada; guardrails, fases y escenarios |
+| 22 | [Checklist de fases NLU](./22-fases-nlu-checklist.md) | **Avance vivo** de la implementación: fase 1 hecha en local (adapter Anthropic, IntentService, NluRouterFlow, filtros, warm-up), pendientes y registro de hitos |
+| 23 | [Entornos local vs producción](./23-entornos-local-prod.md) | **Guía operativa**: el webhook decide el entorno; `pnpm webhook status/local/prod`, receta ngrok, tabla de variables por lado, gotchas (secret, cola de updates) y estado actual |
 
 ## Decisiones de stack confirmadas
 

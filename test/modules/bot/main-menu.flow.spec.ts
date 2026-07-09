@@ -32,6 +32,13 @@ const subscribe = {
 };
 const acfPresenter = { pageMessage: vi.fn().mockReturnValue({ kind: 'buttons' }) };
 const processes = { findById: vi.fn() };
+// NLU apagado por defecto: el texto libre cae al menú (comportamiento clásico).
+const nlu = {
+  id: 'nlu',
+  enabled: false,
+  handleFreeText: vi.fn(),
+  onRubroAction: vi.fn().mockResolvedValue({ messages: ['RUBRO'] }),
+};
 
 describe('MainMenuFlow', () => {
   const flow = new MainMenuFlow(
@@ -40,6 +47,7 @@ describe('MainMenuFlow', () => {
     entity as never,
     procesos as never,
     subscribe as never,
+    nlu as never,
     acfPresenter as never,
     processes as never,
   );
@@ -100,5 +108,56 @@ describe('MainMenuFlow', () => {
     await flow.handle(makeCtx('acfpage:2'));
     expect(processes.findById).not.toHaveBeenCalled();
     expect(presenter.build).toHaveBeenCalled();
+  });
+
+  it('"rubro:*" (hub de rubros NLU) delega a nluFlow.onRubroAction', async () => {
+    const r = await flow.handle(makeCtx('rubro:1'));
+    expect(nlu.onRubroAction).toHaveBeenCalledTimes(1);
+    expect(r.messages).toEqual(['RUBRO']);
+  });
+
+  describe('con NLU activo', () => {
+    const nluOn = {
+      id: 'nlu',
+      enabled: true,
+      handleFreeText: vi.fn().mockResolvedValue({ messages: ['NLU'] }),
+    };
+    const flowNlu = new MainMenuFlow(
+      presenter as never,
+      anuncios as never,
+      entity as never,
+      procesos as never,
+      subscribe as never,
+      nluOn as never,
+      acfPresenter as never,
+      processes as never,
+    );
+
+    it('texto libre va al NLU', async () => {
+      const r = await flowNlu.handle(makeCtx('obras para colegios en piura'));
+      expect(nluOn.handleFreeText).toHaveBeenCalledTimes(1);
+      expect(r.messages).toEqual(['NLU']);
+    });
+
+    it('si el NLU devuelve null (falló), cae al menú', async () => {
+      nluOn.handleFreeText.mockResolvedValueOnce(null);
+      const r = await flowNlu.handle(makeCtx('obras en lima'));
+      expect(presenter.build).toHaveBeenCalled();
+      expect(r.nextFlowId).toBe('main-menu');
+    });
+
+    it('ids de botones viejos NO van al NLU', async () => {
+      await flowNlu.handle(makeCtx('entact:xyz'));
+      expect(nluOn.handleFreeText).not.toHaveBeenCalled();
+      expect(presenter.build).toHaveBeenCalled();
+    });
+
+    it('primer contacto muestra bienvenida, no NLU', async () => {
+      const ctx = makeCtx('hola bot');
+      ctx.isNewConversation = true;
+      (presenter as { welcome?: unknown }).welcome = vi.fn().mockReturnValue([menuMsg]);
+      await flowNlu.handle(ctx);
+      expect(nluOn.handleFreeText).not.toHaveBeenCalled();
+    });
   });
 });

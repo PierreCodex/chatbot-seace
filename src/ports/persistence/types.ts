@@ -23,11 +23,23 @@ export interface SearchFilters {
    * por el flujo), garantizando coincidencia con el nombre raspado del anuncio.
    */
   entityNombre?: string;
+  /**
+   * Varias entidades a la vez (OR). Lo usa el NLU para "ubicación": "obras en
+   * Piura" = anuncios de TODAS las entidades cuyo nombre matchea la zona.
+   */
+  entityNombres?: string[];
   objeto?: ObjetoContratacion;
   tipoSeleccionIds?: number[];
   anioConvocatoria?: number;
   departamento?: string;
   keyword?: string;
+  /**
+   * Sinónimos del NLU: la descripción debe contener AL MENOS UNO (OR-ILIKE).
+   * Ej: ["colegio","escuela","I.E.","institución educativa"]. Ver docs/21 §4.
+   */
+  keywords?: string[];
+  /** Temas negados ("pero no carreteras"): la descripción NO debe contener ninguno. */
+  excludeKeywords?: string[];
   valorMin?: number;
   valorMax?: number;
 }

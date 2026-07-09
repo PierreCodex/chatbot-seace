@@ -1,5 +1,16 @@
 # 19 · Deploy en Railway (test de 1 semana)
 
+> **MIGRACIÓN 2026-07-09**: la cuenta original de Railway venció. Todo se
+> recreó en la cuenta nueva (`deveuser001@gmail.com`): proyecto `dataseace`,
+> servicios `api`/`worker` (mismo esquema de abajo), **Redis de Railway**
+> (reemplaza a Upstash — coherente con la decisión "Redis propio",
+> `REDIS_URL=${{Redis.REDIS_URL}}`), dominio nuevo
+> `https://api-production-316d.up.railway.app`, y las variables del NLU
+> (`LLM_PROVIDER/LLM_API_KEY/LLM_MODEL/NLU_ENABLED/NLU_TIMEOUT_MS`) en `api`.
+> El primer deploy se hizo con `railway up` (código local, fase 1+2 NLU);
+> el servicio `api` quedó además conectado al repo GitHub — un push a `main`
+> re-deploya, así que **commitear antes de pushear** para no volver atrás.
+
 > Cómo desplegar DataSeace a Railway desde GitHub para el test en vivo. Usa **un
 > solo `Dockerfile`** (incluye Chromium para el crawler) y **dos servicios** (API +
 > worker) que comparten el mismo repo/imagen, cambiando solo el *start command*.

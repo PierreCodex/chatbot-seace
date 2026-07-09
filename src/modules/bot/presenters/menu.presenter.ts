@@ -68,6 +68,10 @@ export class MenuPresenter {
         `[⚒️] Menú de funciones /menu\n` +
         `[📋] Tu perfil /miplan\n\n` +
         `${WELCOME_SEP}\n\n` +
+        `[💬]  <b>NUEVO: escríbeme y te entiendo</b>\n\n` +
+        `<i>Prueba:</i> <code>obras para colegios en Piura</code>\n` +
+        `<i>o</i> <code>avísame cuando salgan hospitales</code>\n\n` +
+        `${WELCOME_SEP}\n\n` +
         `${tgEmoji('ownerTag')} Owner: @pierrecodex ${tgEmoji('ownerBadge')}`,
     };
   }
@@ -115,6 +119,8 @@ export class MenuPresenter {
         tgDivider(8) +
         '\nTu acceso directo a las contrataciones del Estado peruano 🇵🇪\n' +
         'Datos del <b>SEACE</b>, sin entrar a la web.\n\n' +
+        '💬 <i>También me puedes escribir directo, ej:</i>\n' +
+        '<code>obras para colegios en Piura</code>\n\n' +
         '📂 <b>Módulos disponibles</b>\n' +
         `${tgEmoji('dot')} <b>Anuncio de Contratación Futura</b>  ${tgEmoji('ok')} <i>activo</i>\n` +
         `${tgEmoji('dot')} <b>Más módulos del SEACE</b>  🔒 <i>próximamente</i>\n\n` +

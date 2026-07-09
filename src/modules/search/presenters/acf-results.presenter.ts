@@ -137,13 +137,18 @@ export class AcfResultsPresenter {
     pages: number;
     total: number;
     pdfUrl?: string;
+    /** Vista filtrada por rubro (hub NLU): "filtro: Salud" en el encabezado. */
+    filterLabel?: string;
+    /** Agrega el botón "🔙 Rubros" (vuelve al hub de rubros del NLU). */
+    backToRubros?: boolean;
   }): OutboundMessage {
     const { to, phoneNumberId, process, index, pages, total, pdfUrl } = args;
     const found =
       total === 1
         ? 'Se encontró <code>1</code> resultado'
         : `Se encontraron <code>${total}</code> resultados`;
-    const body = `<blockquote>${found}   ·   <code>${index + 1}/${pages}</code></blockquote>\n${cardTelegram(process)}`;
+    const filtro = args.filterLabel ? `   ·   filtro: <b>${esc(args.filterLabel)}</b>` : '';
+    const body = `<blockquote>${found}${filtro}   ·   <code>${index + 1}/${pages}</code></blockquote>\n${cardTelegram(process)}`;
 
     const nav: ButtonOption[] = [];
     if (index > 0) {
@@ -173,20 +178,33 @@ export class AcfResultsPresenter {
     if (pdfUrl) {
       actions.push({
         id: 'acf:pdf',
-        title: 'PDF con todos',
+        // En vista filtrada por rubro el PDF contiene SOLO ese rubro.
+        title: args.filterLabel ? `PDF ${truncate(args.filterLabel, 14)}` : 'PDF con todos',
         url: pdfUrl,
         iconCustomEmojiId: TG_EMOJI.pdfBtn.id,
       });
     }
 
-    const buttons: ButtonOption[] = [
-      ...nav,
-      ...actions,
-      // `menu:show` (no `menu:main`): muestra el menú en un mensaje nuevo, sin borrar
-      // la tarjeta de resultados (queda en el historial).
-      { id: 'menu:show', title: 'Menú', style: 'success', iconCustomEmojiId: TG_EMOJI.back.id },
-    ];
-    const layout = [...(nav.length ? [nav.length] : []), actions.length, 1];
+    // Última fila: [🔙 Rubros] (si venimos del hub NLU) + Menú.
+    const lastRow: ButtonOption[] = [];
+    if (args.backToRubros) {
+      lastRow.push({
+        id: 'rubro:back',
+        title: 'Rubros',
+        style: 'primary',
+        iconCustomEmojiId: TG_EMOJI.back.id,
+      });
+    }
+    // `menu:show` (no `menu:main`): muestra el menú en un mensaje nuevo, sin borrar
+    // la tarjeta de resultados (queda en el historial).
+    lastRow.push({
+      id: 'menu:show',
+      title: 'Menú',
+      style: 'success',
+      iconCustomEmojiId: TG_EMOJI.back.id,
+    });
+    const buttons: ButtonOption[] = [...nav, ...actions, ...lastRow];
+    const layout = [...(nav.length ? [nav.length] : []), actions.length, lastRow.length];
     return {
       kind: 'buttons',
       to,
