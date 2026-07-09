@@ -58,13 +58,15 @@ export class ReplyComposerService {
         maxTokens: 200,
         timeoutMs: 6000,
       });
-      const clean = sanitizeReply(out.respuesta);
+      const checked = checkReply(out.respuesta);
       // Log de auditoría: qué se redactó y ante qué (recortado).
       this.logger.log(
         `compose ${args.kind} ${Date.now() - started}ms "${args.userText.slice(0, 60)}" → ` +
-          (clean ? `"${clean.slice(0, 80)}"` : 'RECHAZADA por sanitize'),
+          (checked.ok
+            ? `"${checked.text!.slice(0, 80)}"`
+            : `RECHAZADA por sanitize (${checked.reason})`),
       );
-      return clean;
+      return checked.text;
     } catch (err) {
       this.logger.warn(`compose ${args.kind} falló: ${(err as Error).message}`);
       return null;
@@ -87,12 +89,25 @@ export class ReplyComposerService {
  * caller usa la plantilla. Exportada para tests y la batería adversarial.
  */
 export function sanitizeReply(s: string): string | null {
+  return checkReply(s).text;
+}
+
+interface SanitizeResult {
+  ok: boolean;
+  text: string | null;
+  reason: string | null;
+}
+
+function checkReply(s: string): SanitizeResult {
   const t = s?.trim();
-  if (!t || t.length > MAX_LEN) return null;
-  if (t.includes('```')) return null;
+  if (!t) return { ok: false, text: null, reason: 'vacía' };
+  if (t.length > MAX_LEN) return { ok: false, text: null, reason: `longitud ${t.length}` };
+  if (t.includes('```')) return { ok: false, text: null, reason: 'bloque de código' };
   const urls = t.match(/https?:\/\/\S+|t\.me\/\S+|www\.\S+/gi) ?? [];
   for (const u of urls) {
-    if (!u.toLowerCase().includes('t.me/pierrecodex')) return null;
+    if (!u.toLowerCase().includes('t.me/pierrecodex')) {
+      return { ok: false, text: null, reason: `URL no permitida ${u}` };
+    }
   }
-  return t;
+  return { ok: true, text: t, reason: null };
 }
