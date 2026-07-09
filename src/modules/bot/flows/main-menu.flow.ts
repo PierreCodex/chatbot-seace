@@ -85,10 +85,21 @@ export class MainMenuFlow implements Flow {
         return { ...r, navigation: 'edit' };
       }
       case 'help':
-        return this.replyAndShowMenu(
-          ctx,
-          'Soy *DataSeace* 🤖. Te aviso de los Anuncios de Contratación Futura del Estado. Elige _Anuncios futuros_, escoge el objeto (obra, bien, etc.) y te muestro lo que viene.',
-        );
+        return {
+          messages: [
+            {
+              kind: 'text',
+              to: ctx.phoneNumber,
+              phoneNumberId: ctx.phoneNumberId,
+              body:
+                'Soy *DataSeace* 🤖. Te aviso de los *Anuncios de Contratación Futura* del Estado peruano.\n\n' +
+                'Escribime lo que buscás o tocá *Menú* para ver las opciones guiadas.',
+            },
+            this.presenter.helpButton(ctx.phoneNumberId, ctx.phoneNumber),
+          ],
+          nextFlowId: 'main-menu',
+          nextStep: 'awaiting-selection',
+        };
 
       // ── Procedimientos (legacy F4, accesible por comando/botón) ──
       case 'search':

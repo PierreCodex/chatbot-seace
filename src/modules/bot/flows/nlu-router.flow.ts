@@ -164,14 +164,14 @@ export class NluRouterFlow implements Flow {
         return { ...r, nextFlowId: r.nextFlowId ?? 'entity-resolver' };
       }
       case 'faq': {
-        if (intent.faqId) return this.replyThenMenu(ctx, FAQ_ANSWERS[intent.faqId]);
+        if (intent.faqId) return this.replyWithHelpButton(ctx, FAQ_ANSWERS[intent.faqId]);
         const reply = await this.composer.compose({
           kind: 'ayuda',
           userText: ctx.input,
           userId: ctx.userId,
           yaBusco: Boolean(ctx.state.data?.lastAcf),
         });
-        return this.replyThenMenu(ctx, reply ?? this.helpText());
+        return this.replyWithHelpButton(ctx, reply ?? this.helpText());
       }
       case 'ayuda': {
         const reply = await this.composer.compose({
@@ -180,7 +180,7 @@ export class NluRouterFlow implements Flow {
           userId: ctx.userId,
           yaBusco: Boolean(ctx.state.data?.lastAcf),
         });
-        return this.replyThenMenu(ctx, reply ?? this.helpText());
+        return this.replyWithHelpButton(ctx, reply ?? this.helpText());
       }
       case 'fuera_de_alcance': {
         const reply = await this.composer.compose({
@@ -189,11 +189,11 @@ export class NluRouterFlow implements Flow {
           userId: ctx.userId,
           yaBusco: Boolean(ctx.state.data?.lastAcf),
         });
-        return this.replyThenMenu(
+        return this.replyWithHelpButton(
           ctx,
           reply ??
             'Eso se me escapa 😅 — yo sé de *contrataciones del Estado (SEACE)*.\n\n' +
-              'Prueba algo como: _"obras para colegios en Piura"_ o usa el menú 👇',
+              'Prueba algo como: _"obras para colegios en Piura"_.',
         );
       }
     }
@@ -689,9 +689,13 @@ export class NluRouterFlow implements Flow {
     };
   }
 
-  private replyThenMenu(ctx: FlowContext, text: string): FlowResult {
+  /** Respuesta conversacional de ayuda con un único botón para abrir el menú guiado. */
+  private replyWithHelpButton(ctx: FlowContext, text: string): FlowResult {
     return {
-      messages: [textMsg(ctx, text), this.menuPresenter.build(ctx.phoneNumberId, ctx.phoneNumber)],
+      messages: [
+        textMsg(ctx, text),
+        this.menuPresenter.helpButton(ctx.phoneNumberId, ctx.phoneNumber),
+      ],
       nextFlowId: 'main-menu',
       nextStep: 'awaiting-selection',
       dataPatch: { nluIntent: undefined, nluCandidates: undefined },
@@ -715,11 +719,11 @@ export class NluRouterFlow implements Flow {
 
   private helpText(): string {
     return (
-      '¡Hola! 👋 Soy *DataSeace*. Escríbeme lo que buscas, por ejemplo:\n\n' +
+      '🤖 Escríbeme lo que buscas en lenguaje natural, por ejemplo:\n\n' +
       '💡 _"obras para colegios en Piura"_\n' +
       '💡 _"anuncios de servicios del GORE Cusco"_\n' +
       '💡 _"avísame cuando salgan hospitales"_\n\n' +
-      'O usa el menú de siempre 👇'
+      'También puedo consultar el *RUC de una entidad* o enviarte un *PDF con resultados*.'
     );
   }
 

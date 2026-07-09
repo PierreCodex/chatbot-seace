@@ -21,7 +21,11 @@ function makeCtx(input: string): FlowContext {
 }
 
 const menuMsg = { kind: 'list' } as never;
-const presenter = { build: vi.fn().mockReturnValue(menuMsg) };
+const helpBtnMsg = { kind: 'buttons' } as never;
+const presenter = {
+  build: vi.fn().mockReturnValue(menuMsg),
+  helpButton: vi.fn().mockReturnValue(helpBtnMsg),
+};
 const anuncios = { id: 'search-anuncios', start: vi.fn().mockReturnValue({ messages: ['ACF'] }) };
 const entity = { id: 'entity-resolver', start: vi.fn().mockReturnValue({ messages: ['ENT'] }) };
 const procesos = { id: 'search-procesos', start: vi.fn().mockReturnValue({ messages: ['PROC'] }) };
@@ -76,10 +80,11 @@ describe('MainMenuFlow', () => {
     expect(r.nextFlowId).toBe('main-menu');
   });
 
-  it('ayuda responde texto + menú', async () => {
+  it('ayuda responde texto + botón Menú (no el menú completo)', async () => {
     const r = await flow.handle(makeCtx('help'));
     expect(r.messages).toHaveLength(2);
-    expect(presenter.build).toHaveBeenCalled();
+    expect(presenter.helpButton).toHaveBeenCalledTimes(1);
+    expect(presenter.build).not.toHaveBeenCalled();
   });
 
   it('"acf:subscribe" entra al flujo de crear alerta', async () => {

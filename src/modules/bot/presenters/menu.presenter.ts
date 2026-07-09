@@ -76,6 +76,27 @@ export class MenuPresenter {
     };
   }
 
+  /** Botón único "Menú" para acompañar respuestas conversacionales de ayuda.
+   * No muestra el menú completo; solo ofrece la ruta guiada bajo demanda. */
+  helpButton(phoneNumberId: string, to: string): OutboundMessage {
+    return {
+      kind: 'buttons',
+      to,
+      phoneNumberId,
+      html: true,
+      body: '¿Preferís ver las opciones?',
+      buttons: [
+        {
+          id: 'menu:main',
+          title: '🏛️ Menú',
+          style: 'primary',
+          iconCustomEmojiId: TG_EMOJI.back.id,
+        },
+      ],
+      buttonLayout: [1],
+    };
+  }
+
   /** Submenú del módulo ACF (nivel 2, solo Telegram): ver anuncios / entidad / alertas. */
   acfMenu(phoneNumberId: string, to: string): OutboundMessage {
     return {
