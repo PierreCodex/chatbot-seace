@@ -138,9 +138,38 @@
   adversarial); chat-sim e2e valida "¿En qué más me puedes ayudar?" redactado
   contextualmente y "dame la receta del ceviche" redirige sin receta.
 
+## Multi-turno / seguimiento sobre resultados ✅ COMPLETA (2026-07-09)
+
+> **Motivación**: el usuario notó que al preguntar *"Puedes darme la ubicación
+> de esos anuncios"* después de una búsqueda, el bot trataba la pregunta como
+> una consulta nueva/fuera de alcance y perdía el contexto. Se implementó un
+> intent de `seguimiento_resultado` que responde con datos de los anuncios
+> mostrados previamente.
+
+- [x] `intent.schema.ts`: nuevo intent `seguimiento_resultado` + campo
+  `pregunta: enum(['ubicacion','entidad','fechas','general'])`.
+- [x] `prompts/nlu.system.prompt.ts`: reglas para detectar follow-ups
+  (palabras como "esos anuncios", "estos resultados", "dónde", "ubicación",
+  "qué entidades son", "cuándo convocan") solo cuando el contexto apunta a
+  resultados previos.
+- [x] `nlu-router.flow.ts`: handler `handleSeguimientoResultado` que lee
+  `acfResults` del estado, reconsulta los procesos por sus ids y responde con
+  plantillas de datos:
+  - `ubicacion` → listado de entidad + descripción truncada (la descripción
+    de ACF ya contiene la dirección/ubicación de la obra).
+  - `entidad` → entidades únicas con conteo.
+  - `fechas` → fechas aproximadas de convocatoria por anuncio + rango total.
+- [x] Respuesta con botón `🏛️ Menú` (sin menú completo), manteniendo el flujo
+  conversacional por defecto.
+- [x] Verificación: build+lint+204 tests verdes; `chat-sim` confirma que
+  después de `"obras"` la pregunta `"Puedes darme la ubicacion de esos
+  anuncios"` responde con la ubicación de los anuncios mostrados.
+
 ## Fase 3 — Refinamientos
 
-- [ ] Aclaración multi-turno ("¿obra o servicio?" — ya cae del schema con `objeto: null`)
+- [x] Aclaración multi-turno / seguimiento sobre resultados mostrados
+  (`seguimiento_resultado`, 2026-07-09).
+- [ ] Aclaración de objeto faltante ("¿obra o servicio?" — ya cae del schema con `objeto: null`)
 - [ ] Fechas relativas finas ("este mes", "la próxima semana")
 - [ ] Gestión de alertas por frase ("ya no me avises de carreteras" → pausar/borrar la que coincida)
 - [ ] Iterar prompt y sinónimos con los logs de parses vacíos
