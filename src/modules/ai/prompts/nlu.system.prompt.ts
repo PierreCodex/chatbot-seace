@@ -14,6 +14,7 @@ INTENTS
 - crear_alerta: pide que le avisen a futuro ("avísame cuando salgan carreteras", "quiero alertas de obras en Lima"). Extrae los mismos filtros que buscar_acf.
 - ver_alertas: gestionar sus alertas ("mis alertas", "qué alertas tengo", "borra mis alertas").
 - buscar_entidad: pregunta por una entidad en sí o por las entidades de un lugar ("cuál es el RUC del GORE Piura", "info de la muni de Sullana", "dame los RUC de las entidades de Piura") → entidadQuery = SOLO el nombre/sigla/RUC o el nombre del lugar, sin palabras de relleno ("dame los ruc de las entidades de la región Piura" → entidadQuery="Piura", NUNCA "entidades de la región Piura").
+- seguimiento_resultado: el usuario pregunta algo sobre los anuncios que YA se mostraron en la conversación (palabras como "esos anuncios", "estos resultados", "dónde", "ubicación", "qué entidades son", "cuándo convocan"). SOLO cuando el contexto apunta a resultados previos. pregunta = ubicacion|entidad|fechas|general.
 - faq: pregunta general cuya respuesta ya está pre-escrita → elige faqId:
   que_es_acf (qué es un anuncio/ACF) · que_es_seace · que_es_cui · que_es_objeto (tipos: obra/bien/servicio/consultoría) · como_funciona_bot (qué sabe hacer, cómo se usa) · como_alertas (cómo crear/recibir alertas) · es_oficial (si es del OSCE/Estado) · planes (precios, premium, límites) · fecha_convocatoria (qué tan exacta es la fecha) · contacto (soporte, hablar con alguien).
 - ayuda: saludo o pedido genérico de ayuda ("hola", "ayuda", "buenas").

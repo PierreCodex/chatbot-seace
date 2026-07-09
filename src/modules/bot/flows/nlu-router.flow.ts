@@ -163,6 +163,8 @@ export class NluRouterFlow implements Flow {
         });
         return { ...r, nextFlowId: r.nextFlowId ?? 'entity-resolver' };
       }
+      case 'seguimiento_resultado':
+        return this.handleSeguimientoResultado(ctx, intent);
       case 'faq': {
         if (intent.faqId) return this.replyWithHelpButton(ctx, FAQ_ANSWERS[intent.faqId]);
         const reply = await this.composer.compose({
@@ -197,6 +199,118 @@ export class NluRouterFlow implements Flow {
         );
       }
     }
+  }
+
+  // ── seguimiento sobre resultados ya mostrados (multi-turno) ──
+
+  private async handleSeguimientoResultado(
+    ctx: FlowContext,
+    intent: NluIntent,
+  ): Promise<FlowResult> {
+    const res = ctx.state.data?.acfResults as AcfResultsState | undefined;
+    if (!res?.ids?.length) {
+      return this.replyWithHelpButton(
+        ctx,
+        'Primero hacé una búsqueda para poder responderte sobre sus resultados.',
+      );
+    }
+
+    const ids = (res.allIds ?? res.ids).slice(0, ACF_PAGE_COUNT * 2);
+    const processes = await this.processes.findManyByIds(ids);
+    if (!processes.length) {
+      return this.replyWithHelpButton(
+        ctx,
+        'No encontré los anuncios de esa búsqueda. Probá buscando de nuevo.',
+      );
+    }
+
+    switch (intent.pregunta) {
+      case 'ubicacion':
+        return this.replyUbicacion(ctx, processes);
+      case 'entidad':
+        return this.replyEntidades(ctx, processes);
+      case 'fechas':
+        return this.replyFechas(ctx, processes);
+      default:
+        return this.replyUbicacion(ctx, processes);
+    }
+  }
+
+  private replyUbicacion(ctx: FlowContext, processes: StoredProcess[]): FlowResult {
+    const total = processes.length;
+    const lines = processes.slice(0, 5).map((p, i) => {
+      const entidad = esc(p.entityNombre ?? 'Entidad no disponible');
+      const desc = esc(truncate(p.descripcion ?? '', 140));
+      return `${i + 1}. <b>${entidad}</b>\n<i>${desc}</i>`;
+    });
+    const body =
+      `📍 <b>Ubicación de ${total} anuncio${total === 1 ? '' : 's'}</b>\n` +
+      tgDivider(8) +
+      '\n' +
+      lines.join('\n\n') +
+      (total > 5 ? '\n\n<i>(mostrando 5 de ' + total + ')</i>' : '');
+    return {
+      messages: [
+        textMsg(ctx, body, true),
+        this.menuPresenter.helpButton(ctx.phoneNumberId, ctx.phoneNumber),
+      ],
+      nextFlowId: 'main-menu',
+      nextStep: 'awaiting-selection',
+      dataPatch: { nluIntent: undefined, nluCandidates: undefined },
+    };
+  }
+
+  private replyEntidades(ctx: FlowContext, processes: StoredProcess[]): FlowResult {
+    const counts = new Map<string, number>();
+    for (const p of processes) {
+      const k = p.entityNombre ?? 'Sin entidad';
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    const entries = Array.from(counts.entries()).slice(0, 10);
+    const body =
+      `🏛️ <b>Entidades de estos ${processes.length} anuncios</b>\n` +
+      tgDivider(8) +
+      '\n' +
+      entries.map(([e, n]) => `• <b>${esc(e)}</b> — ${n}`).join('\n');
+    return {
+      messages: [
+        textMsg(ctx, body, true),
+        this.menuPresenter.helpButton(ctx.phoneNumberId, ctx.phoneNumber),
+      ],
+      nextFlowId: 'main-menu',
+      nextStep: 'awaiting-selection',
+      dataPatch: { nluIntent: undefined, nluCandidates: undefined },
+    };
+  }
+
+  private replyFechas(ctx: FlowContext, processes: StoredProcess[]): FlowResult {
+    const rango = fechaAproxRange(processes);
+    const fechas = processes.slice(0, 5).map((p, i) => {
+      const f = p.acf?.fechaAproxConv
+        ? p.acf.fechaAproxConv.toLocaleDateString('es-PE', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            timeZone: 'UTC',
+          })
+        : 'sin fecha';
+      return `${i + 1}. <b>${esc(p.entityNombre ?? 'Entidad')}</b> — ${f}`;
+    });
+    const body =
+      `🗓️ <b>Fechas aprox. de convocatoria</b>\n` +
+      tgDivider(8) +
+      '\n' +
+      fechas.join('\n') +
+      (rango ? `\n\n<i>Rango total: ${rango}</i>` : '');
+    return {
+      messages: [
+        textMsg(ctx, body, true),
+        this.menuPresenter.helpButton(ctx.phoneNumberId, ctx.phoneNumber),
+      ],
+      nextFlowId: 'main-menu',
+      nextStep: 'awaiting-selection',
+      dataPatch: { nluIntent: undefined, nluCandidates: undefined },
+    };
   }
 
   // ── búsqueda ACF en lenguaje natural ──
@@ -925,8 +1039,8 @@ function dedupTerms(terms: Array<string | null | undefined>): string[] {
   return out;
 }
 
-function textMsg(ctx: FlowContext, body: string): OutboundMessage {
-  return { kind: 'text', to: ctx.phoneNumber, phoneNumberId: ctx.phoneNumberId, body };
+function textMsg(ctx: FlowContext, body: string, html = false): OutboundMessage {
+  return { kind: 'text', to: ctx.phoneNumber, phoneNumberId: ctx.phoneNumberId, body, html };
 }
 
 function parseId(input: string, prefix: string): string | null {

@@ -28,6 +28,7 @@ export const nluIntentSchema = z.object({
     'crear_alerta',
     'ver_alertas',
     'buscar_entidad',
+    'seguimiento_resultado',
     'faq',
     'ayuda',
     'fuera_de_alcance',
@@ -56,6 +57,8 @@ export const nluIntentSchema = z.object({
   entidadQuery: z.string().nullable(),
   /** Solo para intent=faq: cuál respuesta pre-escrita corresponde. */
   faqId: z.enum(FAQ_IDS).nullable(),
+  /** Solo para intent=seguimiento_resultado: qué quiere saber del resultado previo. */
+  pregunta: z.enum(['ubicacion', 'entidad', 'fechas', 'general']).nullable(),
 });
 
 export type NluIntent = z.infer<typeof nluIntentSchema>;
