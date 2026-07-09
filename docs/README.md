@@ -27,6 +27,7 @@ Diseño técnico inicial del chatbot WhatsApp para consultar contrataciones púb
 | 21 | [IA conversacional NLU-first](./21-propuesta-nlu-conversacional.md) | **Diseño cerrado**: el usuario escribe en lenguaje natural y el LLM solo interpreta (intents, filtros, sinónimos); respuestas siempre por plantilla; re-rank + FAQ curada; guardrails, fases y escenarios |
 | 22 | [Checklist de fases NLU](./22-fases-nlu-checklist.md) | **Avance vivo** de la implementación: fase 1 hecha en local (adapter Anthropic, IntentService, NluRouterFlow, filtros, warm-up), pendientes y registro de hitos |
 | 23 | [Entornos local vs producción](./23-entornos-local-prod.md) | **Guía operativa**: el webhook decide el entorno; `pnpm webhook status/local/prod`, receta ngrok, tabla de variables por lado, gotchas (secret, cola de updates) y estado actual |
+| 24 | [Capa conversacional generada](./24-plan-capa-conversacional.md) | **Plan/handoff aprobado**: respuestas sociales redactadas por LLM bajo directiva del código (contrato de capacidades, sanitizado, rate limit 6/h, batería adversarial); datos siempre por plantilla |
 
 ## Decisiones de stack confirmadas
 

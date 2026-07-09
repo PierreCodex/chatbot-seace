@@ -15,6 +15,7 @@ import { FAQ_ANSWERS } from '../../ai/faq.answers';
 import type { NluIntent } from '../../ai/intent.schema';
 import { IntentService } from '../../ai/intent.service';
 import { RerankService } from '../../ai/rerank.service';
+import { ReplyComposerService } from '../../ai/reply-composer.service';
 import { ResultsSummaryService } from '../../ai/results-summary.service';
 import { EntitySearchService } from '../../search/entity-search.service';
 import { AcfResultsPresenter } from '../../search/presenters/acf-results.presenter';
@@ -95,6 +96,7 @@ export class NluRouterFlow implements Flow {
     private readonly intents: IntentService,
     private readonly rerank: RerankService,
     private readonly summary: ResultsSummaryService,
+    private readonly composer: ReplyComposerService,
     private readonly entitySearch: EntitySearchService,
     private readonly searchFacade: SearchFacade,
     private readonly resultsPresenter: AcfResultsPresenter,
@@ -161,16 +163,39 @@ export class NluRouterFlow implements Flow {
         });
         return { ...r, nextFlowId: r.nextFlowId ?? 'entity-resolver' };
       }
-      case 'faq':
-        return this.replyThenMenu(ctx, intent.faqId ? FAQ_ANSWERS[intent.faqId] : this.helpText());
-      case 'ayuda':
-        return this.replyThenMenu(ctx, this.helpText());
-      case 'fuera_de_alcance':
+      case 'faq': {
+        if (intent.faqId) return this.replyThenMenu(ctx, FAQ_ANSWERS[intent.faqId]);
+        const reply = await this.composer.compose({
+          kind: 'ayuda',
+          userText: ctx.input,
+          userId: ctx.userId,
+          yaBusco: Boolean(ctx.state.data?.lastAcf),
+        });
+        return this.replyThenMenu(ctx, reply ?? this.helpText());
+      }
+      case 'ayuda': {
+        const reply = await this.composer.compose({
+          kind: 'ayuda',
+          userText: ctx.input,
+          userId: ctx.userId,
+          yaBusco: Boolean(ctx.state.data?.lastAcf),
+        });
+        return this.replyThenMenu(ctx, reply ?? this.helpText());
+      }
+      case 'fuera_de_alcance': {
+        const reply = await this.composer.compose({
+          kind: 'fuera_de_alcance',
+          userText: ctx.input,
+          userId: ctx.userId,
+          yaBusco: Boolean(ctx.state.data?.lastAcf),
+        });
         return this.replyThenMenu(
           ctx,
-          'Eso se me escapa 😅 — yo sé de *contrataciones del Estado (SEACE)*.\n\n' +
-            'Prueba algo como: _"obras para colegios en Piura"_ o usa el menú 👇',
+          reply ??
+            'Eso se me escapa 😅 — yo sé de *contrataciones del Estado (SEACE)*.\n\n' +
+              'Prueba algo como: _"obras para colegios en Piura"_ o usa el menú 👇',
         );
+      }
     }
   }
 

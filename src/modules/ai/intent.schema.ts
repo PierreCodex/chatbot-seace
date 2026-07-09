@@ -72,6 +72,13 @@ export type RerankResult = z.infer<typeof rerankSchema>;
  * el LLM solo AGRUPA — etiqueta corta + índices —; los conteos, orden y render
  * los hace el código. Nada de texto libre hacia el usuario).
  */
+/** Salida del redactor conversacional (capa social): SOLO el texto, que luego
+ * valida el código (sanitizeReply) antes de enviarse. */
+export const respuestaSchema = z.object({
+  respuesta: z.string(),
+});
+export type Respuesta = z.infer<typeof respuestaSchema>;
+
 export const clasificacionSchema = z.object({
   rubros: z.array(
     z.object({

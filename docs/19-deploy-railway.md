@@ -10,6 +10,19 @@
 > El primer deploy se hizo con `railway up` (código local, fase 1+2 NLU);
 > el servicio `api` quedó además conectado al repo GitHub — un push a `main`
 > re-deploya, así que **commitear antes de pushear** para no volver atrás.
+>
+> **Gotchas del deploy en cuenta nueva (2026-07-09):**
+> 1. **NO usar pre-deploy command con `pnpm prisma migrate deploy`**: en el
+>    contenedor de pre-deploy el proceso termina el trabajo ("No pending
+>    migrations") pero NO SALE (probable prompt de corepack sin TTY) → el
+>    contenedor principal nunca arranca → "Healthcheck failed!" tras 5 min de
+>    "service unavailable". Migraciones: aplicarlas manualmente desde local
+>    (`pnpm prisma:migrate:deploy`) antes de deployar cambios de schema.
+> 2. El start command con `&&` NO corre en shell (mismo síntoma).
+> 3. En GraphQL `serviceInstanceUpdate`, **`null` = "no cambiar"**, no "borrar"
+>    — para limpiar `preDeployCommand` hay que mandar `[]`.
+> 4. `railway redeploy` reutiliza el manifiesto del deployment anterior — los
+>    cambios de config solo aplican con un deploy NUEVO (`railway up` / push).
 
 > Cómo desplegar DataSeace a Railway desde GitHub para el test en vivo. Usa **un
 > solo `Dockerfile`** (incluye Chromium para el crawler) y **dos servicios** (API +
